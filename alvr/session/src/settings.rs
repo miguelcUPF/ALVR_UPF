@@ -1161,6 +1161,16 @@ pub struct Patches {
 }
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone)]
+pub struct CustomConfig {
+    #[schema(strings(
+        help = "Number of tracking polls per frame (e.g., at 90 fps, 3 polls/frame is equivalent to 270 polls/s)"
+    ))]
+    #[schema(flag = "steamvr-restart")]
+    #[schema(gui(slider(min = 0.1, max = 10.0, step = 0.1)), suffix = "polls/frame")]
+    pub tracking_poll_rate: f32,
+}
+
+#[derive(SettingsSchema, Serialize, Deserialize, Clone)]
 pub struct Settings {
     pub video: VideoConfig,
     pub audio: AudioConfig,
@@ -1168,6 +1178,7 @@ pub struct Settings {
     pub connection: ConnectionConfig,
     pub logging: LoggingConfig,
     pub others: OthersConfig,
+    pub custom: CustomConfig,
 }
 
 pub fn session_settings_default() -> SettingsDefault {
@@ -1685,6 +1696,9 @@ pub fn session_settings_default() -> SettingsDefault {
                 linux_async_reprojection: false,
             },
             open_setup_wizard: alvr_common::is_stable() || alvr_common::is_nightly(),
+        },
+        custom: CustomConfigDefault {
+            tracking_poll_rate: 3.0,
         },
     }
 }

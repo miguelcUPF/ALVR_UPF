@@ -64,6 +64,7 @@ struct StreamConfig {
     foveated_encoding_config: Option<FoveatedEncodingConfig>,
     clientside_foveation_config: Option<ClientsideFoveationConfig>,
     face_sources_config: Option<FaceTrackingSourcesConfig>,
+    poll_rate_hint: f32,
 }
 
 struct StreamContext {
@@ -542,13 +543,14 @@ fn initialize_stream(
         let running = Arc::clone(&running);
         let interaction_ctx = Arc::clone(&interaction_ctx);
         let input_rate = config.refresh_rate_hint;
+        let poll_rate = config.poll_rate_hint;
         move || {
             let mut deadline = Instant::now();
             let frame_interval = Duration::from_secs_f32(1.0 / input_rate);
             while running.value() {
                 stream_input_pipeline(&xr_ctx, &interaction_ctx, &mut input_context);
 
-                deadline += frame_interval / 3;
+                deadline += Duration::from_secs_f32(frame_interval.as_secs_f32() / poll_rate);
                 thread::sleep(deadline.saturating_duration_since(Instant::now()));
             }
         }
@@ -849,6 +851,7 @@ pub fn entry_point() {
                                 .face_tracking
                                 .as_option()
                                 .map(|c| c.sources.clone()),
+                            poll_rate_hint: settings.custom.tracking_poll_rate,
                         });
                         if stream_config != new_config {
                             stream_config = new_config;
