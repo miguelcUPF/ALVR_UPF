@@ -287,10 +287,6 @@ fn connection_pipeline(
         stream_socket.subscribe_to_stream::<Haptics>(HAPTICS, MAX_UNREAD_PACKETS);
     let statistics_sender = stream_socket.request_stream(STATISTICS);
 
-    let mut last_instant_IDR_client = Instant::now();
-    let interval_IDR_seconds_f32 =
-        settings.connection.client_idr_refresh_interval_ms as f32 / 1000.0;
-
     let mut frames_dropped: u32 = 0; // number of frames dropped
 
     let video_receive_thread = thread::spawn(move || {
@@ -340,21 +336,6 @@ fn connection_pipeline(
             };
             if let Some(stats) = &mut *STATISTICS_MANAGER.lock() {
                 stats.report_video_packet_received(header.timestamp);
-            }
-
-            // periodically request an IDR frame using the settings' client_idr_refresh_interval_ms
-
-            if settings.connection.idr_periodic_bool {
-                if Instant::now()
-                    .saturating_duration_since(last_instant_IDR_client)
-                    .as_secs_f32()
-                    >= interval_IDR_seconds_f32
-                {
-                    if let Some(sender) = &mut *CONTROL_SENDER.lock() {
-                        sender.send(&ClientControlPacket::RequestIdr).ok();
-                    }
-                    last_instant_IDR_client = Instant::now();
-                }
             }
 
             if header.is_idr {
