@@ -1,88 +1,103 @@
-<p align="center"> <img width="500" src="resources/alvr_combined_logo_hq.png"/> </p>
 
-# ALVR - Air Light VR
 
-[![badge-discord][]][link-discord] [![badge-matrix][]][link-matrix] [![badge-opencollective][]][link-opencollective]
+# ALVR - Air Light VR - Wireless Networking UPF
 
-Stream VR games from your PC to your headset via Wi-Fi.  
-ALVR uses technologies like [Asynchronous Timewarp](https://developer.oculus.com/documentation/native/android/mobile-timewarp-overview) and [Fixed Foveated Rendering](https://developer.oculus.com/documentation/native/android/mobile-ffr) for a smoother experience.  
-Most of the games that run on SteamVR or Oculus Software (using Revive) should work with ALVR.  
-This is a fork of [ALVR](https://github.com/polygraphene/ALVR).
+This **fork of [ALVR v20.6.0](https://github.com/alvr-org/ALVR)** introduces several enhancements to ALVR for monitoring and optimizing VR streaming performance. 
 
-|      VR Headset       |                                Support                                 |
-| :-------------------: | :--------------------------------------------------------------------: |
-|    Quest 1/2/3/Pro    |                           :heavy_check_mark:                           |
-|     Pico 4/Neo 3      |                           :heavy_check_mark:                           |
-| Vive Focus 3/XR Elite |                           :heavy_check_mark:                           |
-|        YVR 1/2        |                           :heavy_check_mark:                           |
-|        Lynx R1        |                           :heavy_check_mark:                           |
-|   Smartphone/Monado   |                              :warning: *                               |
-|   Google Cardboard    | :warning: * ([PhoneVR](https://github.com/PhoneVR-Developers/PhoneVR)) |
-|        GearVR         |                         :construction: (maybe)                         |
-|       Oculus Go       |                                 :x: **                                 |
+In particular, our project integrates **additional metrics** to characterize the network state during streaming, providing insights into video frame (VF) delivery and network performance. Our metrics are logged in the `session_log.txt` file when the `Log to disk` setting is enabled and are also displayed in real time on the `Statistics` tab of the ALVR dashboard:
 
-\* : Only works on some smartphones, not enough testing.  
-\** : Oculus Go support was dropped, the minimum supported OS is Android 8. Download the last compatible version [here](https://github.com/alvr-org/ALVR/releases/tag/v18.2.3).
+|  |  |
+| --- | --- |
+| ![dashboard](./images/metrics_dashboard_1.png) | ![dashboard](./images/metrics_dashboard_2.png) |
+|  |  |
 
-|        PC OS        |       Support       |
-| :-----------------: | :-----------------: |
-|   Windows 8/10/11   | :heavy_check_mark:  |
-|    Windows 7/XP     |         :x:         |
-|     Ubuntu/Arch     |    :warning: ***    |
-| Other linux distros | :grey_question: *** |
-|        macOS        |         :x:         |
+Our project also implements the **Network-aware Step-wise ABR algorithm (NeSt-VR)**, an Adaptive BitRate (ABR) algorithm designed to optimize streaming quality based on real-time network conditions. 
 
-\*** : Linux support is still in beta. To be able to make audio work or run ALVR at all you may need advanced knowledge of your distro for debugging or building from source.
+![nest_vr](./images/MaxR-video-July.gif)
 
-## Requirements
+This algorithm is implemented as a new bitrate mode in ALVR, named `NeSt vr`:
 
--   A supported standalone VR headset (see compatibility table above)
+![nestvr_settings](./images/Settings_NeST-VR.png)
 
--   SteamVR
 
--   High-end gaming PC
-    -   See OS compatibility table above.
-    -   NVIDIA GPU that supports NVENC (1000 GTX Series or higher) (or with an AMD GPU that supports AMF VCE) with the latest driver.
-    -   Laptops with an onboard (Intel HD, AMD iGPU) and an additional dedicated GPU (NVidia GTX/RTX, AMD HD/R5/R7): you should assign the dedicated GPU or "high performance graphics adapter" to the applications ALVR, SteamVR for best performance and compatibility. (NVidia: Nvidia control panel->3d settings->application settings; AMD: similiar way)
+For a comprehensive validation of several metrics and a detailed introduction and evaluation of the NeSt-VR algorithm, please refer to our paper:  **["Experimenting with Adaptive Bitrate Algorithms for Virtual Reality Streaming over Wi-Fi"](https://arxiv.org/abs/2407.15614)**.
 
--   802.11ac 5Ghz wireless or ethernet wired connection  
-    -   It is recommended to use 802.11ac 5Ghz for the headset and ethernet for PC  
-    -   You need to connect both the PC and the headset to same router (or use a routed connection as described [here](https://github.com/alvr-org/ALVR/wiki/ALVR-v14-and-Above))
+## Added metrics overview 
 
-## Install
+> **Note:** Our client-side reported statistics —essential for obtaining the added metrics— are sent from the head-mounted diplay (HMD) to the server over TCP immediately after the client receives a VF. This feedback is received at the server significantly sooner than ALVR’s native statistics packet, which is delayed until the VF is ready
+for display
 
-Follow the installation guide [here](https://github.com/alvr-org/ALVR/wiki/Installation-guide).
+### Time-related metrics
+* **Client-side frame span** (`frame_span_ms` in `GraphNetworkStatistics`): time interval between the reception of the first packet to the reception of the last packet of a VF
 
-## Troubleshooting
+* **Frame inter-arrival time** (`frame_interarrival_ms` in `GraphNetworkStatistics`): time interval between
+the reception of the last packet of a VF and the last packet of the previous received VF
 
--   Please check the [Troubleshooting](https://github.com/alvr-org/ALVR/wiki/Troubleshooting) page. The original repository [wiki](https://github.com/polygraphene/ALVR/wiki/Troubleshooting) can also help.  
--   Configuration recommendations and information may be found [here](https://github.com/alvr-org/ALVR/wiki/PC)
+* **Video Frame Round-Trip Time (VF-RTT)** (`rtt_ms` in `GraphNetworkStatistics`): time it takes for a complete VF to travel from the server to the client and for our supplementary UL packet —promptly sent upon the complete reception of the VF— to reach the server
 
-## Uninstall
+### Reliability metrics 
+* **Packets lost** (`shards_lost` in `GraphNetworkStatistics`): number of packets lost in the interval between two VF receptions
 
-Open `ALVR Dashboard.exe`, go to `Installation` tab then press `Remove firewall rules`. Close ALVR window and delete the ALVR folder.
+* **Packets duplicated** (`shards_duplicated` in `GraphNetworkStatistics`): number of packets duplicated in the interval between two VF receptions
 
-## Build from source
+* **Frames skipped** (`frames_skipped` in `GraphNetworkStatistics`): number of VFs lost prior to decoding, i.e., after network transmission due to packet losses or significant delays
 
-You can follow the guide [here](https://github.com/alvr-org/ALVR/wiki/Building-From-Source).
+* **Frames dropped** (`frames_dropped` in `GraphStatistics`): number of decoded VFs lost before visualization
 
-## License
+### Data rate metrics 
+* **Instantaneous video network throughput** (`instant_network_throughput_bps` in `GraphNetworkStatistics`): rate at which video data is received by the client, measured in the interval between two VFs receptions
 
-ALVR is licensed under the [MIT License](LICENSE).
+* **Peak network throughput** (`peak_network_throughput_bps` in `GraphNetworkStatistics`): ratio between the VF’s size and its client-side frame span, used in NeSt-VR to estimate the network capacity
 
-## Privacy policy
+### Network Stability metrics
+* **VF jitter** (`frame_jitter_ms` in `GraphNetworkStatistics`): variation in VF time deliveries, computed as the sample standard deviation of frame inter-arrival times 
 
-ALVR apps do not directly collect any kind of data.
+* **Video packet jitter** (`interarrival_jitter_ms` in `GraphNetworkStatistics`): variability in video packet arrival times as defined in [RFC 3550](https://datatracker.ietf.org/doc/html/rfc3550)
 
-## Donate
+* **Filtered one-way delay gradient** and **One-way delay gradient** (`filtered_ow_delay_ms` and `ow_delay_ms`, respectively, in `GraphNetworkStatistics`) : rate of change in one-way delay (OWD) between two consecutive VFs, smoothed using a Kalman filter
+as described in ["Analysis and design of the google congestion control for web real-time communication (WebRTC)"](https://dl.acm.org/doi/10.1145/2910017.2910605) and a state noise variance of $10^{−7}$
 
-If you want to support this project you can make a donation to our [Open Source Collective account](https://opencollective.com/alvr).
+## NeSt-VR overview
 
-You can also donate to the original author of ALVR using Paypal (polygraphene@gmail.com) or with bitcoin (1FCbmFVSjsmpnAj6oLx2EhnzQzzhyxTLEv).
+NeSt-VR applies a hierarchical decision-making process, operating every $\tau$ seconds and progressively adjusting the target bitrate ($B_v$) —initially set to ($B_0$) Mbps— in $\beta$ Mbps steps to avoid significant video quality shifts that may disrupt the user’s QoE. NeSt-VR uses the Network Frame Ratio (NFR) and VF-RTT —averaged over an $n$-sample sliding window ($\overline{\;\centerdot\;}$)— as inputs, adjusting the bitrate if their values surpass configurable thresholds ($\rho$ and $\sigma$, respectively). The target bitrate is also constrained within the configured maximum and minimum bitrate limits ($B_{\max}$ and $B_{\min}$) and is further upper bounded by $m \cdot C_{\text{NeSt-VR}}$ —with $m \leq 1$— to  ensure the bitrate remains under our estimated network capacity ($C_{\text{NeSt-VR}}$):
 
-[badge-discord]: https://img.shields.io/discord/720612397580025886?style=for-the-badge&logo=discord&color=5865F2 "Join us on Discord"
-[link-discord]: https://discord.gg/ALVR
-[badge-matrix]: https://img.shields.io/static/v1?label=chat&message=%23alvr&style=for-the-badge&logo=matrix&color=blueviolet "Join us on Matrix"
-[link-matrix]: https://matrix.to/#/#alvr:ckie.dev?via=ckie.dev
-[badge-opencollective]: https://img.shields.io/opencollective/all/alvr?style=for-the-badge&logo=opencollective&color=79a3e6 "Donate"
-[link-opencollective]: https://opencollective.com/alvr
+![nest_vr](./images/stepwise-abr-nest.png)
+
+> **Note:** NFR is computed as $\overline{\text{fps}_{\rm rx}}/{\overline{\text{fps}_{\rm tx}}}$. $\overline{\text{fps}_{\rm rx}}$ denotes the average frame delivery rate
+and $\overline{\text{fps}_{\rm tx}}$ denotes the average frame transmission rate (`network_heur_fps` and `server_fps`, respectively, in `HeuristicStats`)
+
+> **Note:** $\sigma$ is computed as $\varsigma/{\overline{\Delta_{\rm tx}}}$. $\varsigma$ is a configurable parameter and $\overline{\Delta_{\rm tx}}$ denotes the average interval between consecutive VFs transmissions
+
+> **Note:** $\gamma$ serves as a configurable exploration parameter to assess whether higher bitrates can be sustained and moderating the frequency of bitrate adjustments due to high VF-RTTs
+
+> **Note:** `HeuristicStats` event is logged at each NeSt-VR adjustment period, including the considered step size ($\beta$: `steps_bps`), the average interval between consecutive VFs transmissions ($\overline{\Delta_{\rm tx}}$: `frame_interval_s`), the considered ($\overline{\text{NFR}}$: `network_heur_fps`), the considered ($\overline{\text{VF-RTT}}$: `rtt_avg_heur_s`), the considered threshold for NFR ($\rho$: `threshold_fps`), the considered threshold for VF-RTT ($\sigma$: `threshold_rtt_s`), the random value drawn from a uniform distribution in the interval [0, 1] (`threshold_u`), and the requested target bitrate ($B_{\text{v}}$: `requested_bitrate_bps`)
+
+NeSt-VR configurable parameters are outlined in the following table:
+
+|        | |                        |   |
+|-------------------|--------|-----------|---------|
+| Adjustment Period | $\tau$ | Step Size | $\beta$ |
+| Sliding Window Size | $n$    | Estimated Capacity Scaling Factor | $m$     |
+| Minimum Bitrate    | $B_{\min}$ | VF-RTT Exploration Probability | $\gamma$ |
+| Maximum Bitrate    | $B_{\max}$ | NFR Threshold | $\rho$   |
+| Initial Bitrate    | $B_{0}$ | VF-RTT Threshold Scaling Factor | $\varsigma$ |
+|        | |                        |   |
+
+
+## How to build
+
+For detailed requirements, please refer to the [ALVR GitHub repository](https://github.com/alvr-org/ALVR).
+
+To build this fork, follow the installation guide provided in the ALVR wiki, specifically for Windows operating systems: [ALVR Installation Guide](https://github.com/alvr-org/ALVR/wiki/Installation-guide).
+
+For further details on how ALVR works, consult their wiki: [How ALVR Works](https://github.com/alvr-org/ALVR/wiki/How-ALVR-works).
+
+
+## Support
+
+This project is developed with partial financial support of:
+
+|  MAX-R Project (HORIZON) | Wi-XR Project (PID2021-123995NB-I00) |
+| --- | --- |
+| ![logomaxr](./images/logo_maxr_main_sRGB.png#gh-light-mode-only) ![logomaxr](./images/logo_maxr_main_sRGB_light.png#gh-dark-mode-only) | ![miciu](./images/miciu-cofinanciadoUE-aei.png) |
+
