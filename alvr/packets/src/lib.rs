@@ -51,6 +51,7 @@ pub struct DecoderInitializationConfig {
 #[derive(Serialize, Deserialize)]
 pub enum ServerControlPacket {
     StartStream,
+    FpsUpdate(f32),
     InitializeDecoder(DecoderInitializationConfig),
     Restarting,
     KeepAlive,

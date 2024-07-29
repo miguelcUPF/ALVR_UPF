@@ -63,6 +63,9 @@ pub enum ClientCoreEvent {
         refresh_rate_hint: f32,
         settings: Box<Settings>,
     },
+    FpsUpdate {
+        refresh_rate_update: f32,
+    },
     StreamingStopped,
     Haptics {
         device_id: u64,

@@ -20,7 +20,7 @@ use std::{
     collections::VecDeque,
     path::Path,
     ptr,
-    sync::{mpsc, Arc, Once},
+    sync::{mpsc, Arc, Mutex, Once},
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
@@ -74,6 +74,7 @@ struct StreamContext {
     last_good_views: Vec<xr::View>,
     running: Arc<RelaxedAtomic>,
     input_thread: Option<JoinHandle<()>>,
+    refresh_rate_hint: Arc<Mutex<f32>>,
 }
 
 impl Drop for StreamContext {
@@ -538,11 +539,15 @@ fn initialize_stream(
         last_ipd: 0.0,
         last_hand_positions: [Vec3::ZERO; 2],
     };
+
+    let refresh_rate_hint = Arc::new(Mutex::new(config.refresh_rate_hint));
+
     let input_thread = thread::spawn({
         let xr_ctx = xr_ctx.clone();
         let running = Arc::clone(&running);
         let interaction_ctx = Arc::clone(&interaction_ctx);
-        let input_rate = config.refresh_rate_hint;
+        let refresh_rate_hint = Arc::clone(&refresh_rate_hint);
+        let input_rate = *refresh_rate_hint.lock().unwrap();
         let poll_rate = config.poll_rate_hint;
         move || {
             let mut deadline = Instant::now();
@@ -563,6 +568,7 @@ fn initialize_stream(
         last_good_views: vec![default_view(), default_view()],
         running,
         input_thread: Some(input_thread),
+        refresh_rate_hint,
     }
 }
 
@@ -867,6 +873,21 @@ pub fn entry_point() {
                                     config,
                                 )
                             });
+                        }
+                    }
+                    ClientCoreEvent::FpsUpdate {
+                        refresh_rate_update,
+                    } => {
+                        if let Some(context) = &mut session_context.stream_context {
+                            let mut refresh_rate = context.refresh_rate_hint.lock().unwrap();
+                            *refresh_rate = refresh_rate_update;
+
+                            if xr_ctx.instance.exts().fb_display_refresh_rate.is_some() {
+                                xr_ctx
+                                    .session
+                                    .request_display_refresh_rate(refresh_rate_update)
+                                    .unwrap();
+                            }
                         }
                     }
                     ClientCoreEvent::StreamingStopped => {

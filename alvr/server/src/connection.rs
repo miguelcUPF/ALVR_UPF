@@ -945,6 +945,53 @@ fn connection_pipeline(
 
     let control_sender = Arc::new(Mutex::new(control_sender));
 
+    let custom_thread = thread::spawn({
+        let control_sender = Arc::clone(&control_sender);
+        let client_hostname = client_hostname.clone();
+        let mut actual_fps = fps;
+        move || {
+            while is_streaming(&client_hostname) {
+                let custom_manager_lock = SERVER_DATA_MANAGER.read();
+                let update_fps = &custom_manager_lock.settings().custom.update_fps;
+                if let Switch::Enabled(new_fps) = *update_fps {
+                    let new_supported_fps = {
+                        let mut best_match = 0_f32;
+                        let mut min_diff = f32::MAX;
+                        for rr in &streaming_caps.supported_refresh_rates {
+                            let diff = (*rr - new_fps).abs();
+                            if diff < min_diff {
+                                best_match = *rr;
+                                min_diff = diff;
+                            }
+                        }
+                        best_match
+                    };
+                    if new_supported_fps != actual_fps {
+                        actual_fps = new_supported_fps;
+
+                        if !streaming_caps.supported_refresh_rates.contains(&new_fps) {
+                            warn!(
+                                "Chosen update refresh rate not supported. Using {new_supported_fps}Hz"
+                            );
+                        }
+                        control_sender
+                            .lock()
+                            .send(&ServerControlPacket::FpsUpdate(new_supported_fps))
+                            .ok();
+                    }
+                } else {
+                    if fps != actual_fps {
+                        actual_fps = fps;
+                        control_sender
+                            .lock()
+                            .send(&ServerControlPacket::FpsUpdate(fps))
+                            .ok();
+                    }
+                }
+            }
+        }
+    });
+
     let keepalive_thread = thread::spawn({
         let control_sender = Arc::clone(&control_sender);
         let disconnect_notif = Arc::clone(&disconnect_notif);
@@ -1259,6 +1306,7 @@ fn connection_pipeline(
     microphone_thread.join().ok();
     tracking_receive_thread.join().ok();
     statistics_thread.join().ok();
+    custom_thread.join().ok();
     control_receive_thread.join().ok();
     stream_receive_thread.join().ok();
     keepalive_thread.join().ok();

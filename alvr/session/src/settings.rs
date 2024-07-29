@@ -1168,6 +1168,14 @@ pub struct CustomConfig {
     #[schema(flag = "steamvr-restart")]
     #[schema(gui(slider(min = 0.1, max = 10.0, step = 0.1)), suffix = "polls/frame")]
     pub tracking_poll_rate: f32,
+
+    #[schema(strings(
+        display_name = "Update client refresh rate",
+        help = "Enables generating video frames at a higher rate than the display rate. Supported client display rates: 60, 72, 80, 90, 120 Hz"
+    ))]
+    #[schema(flag = "real-time")]
+    #[schema(gui(slider(min = 60.0, max = 120.0)), suffix = "Hz")]
+    pub update_fps: Switch<f32>,
 }
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone)]
@@ -1699,6 +1707,10 @@ pub fn session_settings_default() -> SettingsDefault {
         },
         custom: CustomConfigDefault {
             tracking_poll_rate: 3.0,
+            update_fps: SwitchDefault {
+                enabled: false,
+                content: 60.,
+            },
         },
     }
 }
