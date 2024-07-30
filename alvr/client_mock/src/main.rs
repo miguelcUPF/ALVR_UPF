@@ -242,9 +242,12 @@ fn client_thread(
                         tracking_thread(streaming, fps, input)
                     }));
                 }
-                ClientCoreEvent::FpsUpdate { refresh_rate_update } => {
+                ClientCoreEvent::FpsUpdate {
+                    refresh_rate_update,
+                } => {
                     window_output.fps = refresh_rate_update;
                 }
+                ClientCoreEvent::PollRateUpdate { .. } => (),
                 ClientCoreEvent::StreamingStopped => {
                     window_output.connected = true;
                     if let Some(thread) = maybe_tracking_thread.take() {

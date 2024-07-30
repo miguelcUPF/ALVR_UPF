@@ -75,6 +75,7 @@ struct StreamContext {
     running: Arc<RelaxedAtomic>,
     input_thread: Option<JoinHandle<()>>,
     refresh_rate_hint: Arc<Mutex<f32>>,
+    poll_rate_hint: Arc<Mutex<f32>>,
 }
 
 impl Drop for StreamContext {
@@ -541,19 +542,25 @@ fn initialize_stream(
     };
 
     let refresh_rate_hint = Arc::new(Mutex::new(config.refresh_rate_hint));
+    let poll_rate_hint = Arc::new(Mutex::new(config.poll_rate_hint));
 
     let input_thread = thread::spawn({
         let xr_ctx = xr_ctx.clone();
         let running = Arc::clone(&running);
         let interaction_ctx = Arc::clone(&interaction_ctx);
         let refresh_rate_hint = Arc::clone(&refresh_rate_hint);
-        let input_rate = *refresh_rate_hint.lock().unwrap();
-        let poll_rate = config.poll_rate_hint;
+        let poll_rate_hint = Arc::clone(&poll_rate_hint);
         move || {
             let mut deadline = Instant::now();
-            let frame_interval = Duration::from_secs_f32(1.0 / input_rate);
+            let mut actual_poll_rate = *poll_rate_hint.lock().unwrap();
+            let mut actual_input_rate = *refresh_rate_hint.lock().unwrap();
+
             while running.value() {
                 stream_input_pipeline(&xr_ctx, &interaction_ctx, &mut input_context);
+                let input_rate = *refresh_rate_hint.lock().unwrap();
+                let poll_rate = *poll_rate_hint.lock().unwrap();
+                
+                let frame_interval = Duration::from_secs_f32(1.0 / input_rate);
 
                 deadline += Duration::from_secs_f32(frame_interval.as_secs_f32() / poll_rate);
                 thread::sleep(deadline.saturating_duration_since(Instant::now()));
@@ -569,6 +576,7 @@ fn initialize_stream(
         running,
         input_thread: Some(input_thread),
         refresh_rate_hint,
+        poll_rate_hint,
     }
 }
 
@@ -879,15 +887,35 @@ pub fn entry_point() {
                         refresh_rate_update,
                     } => {
                         if let Some(context) = &mut session_context.stream_context {
-                            let mut refresh_rate = context.refresh_rate_hint.lock().unwrap();
+                            let mut refresh_rate = match context.refresh_rate_hint.lock() {
+                                Ok(lock) => lock,
+                                Err(poisoned) => {
+                                    warn!("Failed to acquire lock: {:?}", poisoned);
+                                    continue;
+                                }
+                            };
                             *refresh_rate = refresh_rate_update;
 
                             if xr_ctx.instance.exts().fb_display_refresh_rate.is_some() {
-                                xr_ctx
+                                if let Err(e) = xr_ctx
                                     .session
                                     .request_display_refresh_rate(refresh_rate_update)
-                                    .unwrap();
+                                {
+                                    warn!("Failed to update display refresh rate: {:?}", e);
+                                }
                             }
+                        }
+                    }
+                    ClientCoreEvent::PollRateUpdate { poll_rate_update } => {
+                        if let Some(context) = &mut session_context.stream_context {
+                            let mut poll_rate = match context.poll_rate_hint.lock() {
+                                Ok(lock) => lock,
+                                Err(poisoned) => {
+                                    warn!("Failed to acquire lock: {:?}", poisoned);
+                                    continue;
+                                }
+                            };
+                            *poll_rate = poll_rate_update;
                         }
                     }
                     ClientCoreEvent::StreamingStopped => {

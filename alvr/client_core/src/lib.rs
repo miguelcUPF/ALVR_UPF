@@ -66,6 +66,9 @@ pub enum ClientCoreEvent {
     FpsUpdate {
         refresh_rate_update: f32,
     },
+    PollRateUpdate {
+        poll_rate_update: f32,
+    },
     StreamingStopped,
     Haptics {
         device_id: u64,

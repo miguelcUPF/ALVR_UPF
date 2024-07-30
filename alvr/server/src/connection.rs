@@ -437,6 +437,8 @@ fn connection_pipeline(
         streaming_caps.default_view_resolution,
     );
 
+    let poll_rate = settings.custom.tracking_poll_rate;
+
     let fps = {
         let mut best_match = 0_f32;
         let mut min_diff = f32::MAX;
@@ -948,12 +950,14 @@ fn connection_pipeline(
     let custom_thread = thread::spawn({
         let control_sender = Arc::clone(&control_sender);
         let client_hostname = client_hostname.clone();
+        let mut actual_poll_rate = poll_rate;
         let mut actual_fps = fps;
         let mut actual_server_fps = fps;
         move || {
             while is_streaming(&client_hostname) {
                 let server_read_lock = SERVER_DATA_MANAGER.read();
 
+                let update_poll_rate = server_read_lock.settings().custom.tracking_poll_rate;
                 let update_fps = match &server_read_lock.settings().custom.update_fps {
                     Switch::Enabled(fps) => *fps,
                     _ => 0.0,
@@ -964,6 +968,15 @@ fn connection_pipeline(
                     _ => 0.0,
                 };
                 drop(server_read_lock);
+
+                // Update client poll rate
+                if update_poll_rate != actual_poll_rate {
+                    actual_poll_rate = update_poll_rate;
+                    control_sender
+                        .lock()
+                        .send(&ServerControlPacket::PollRateUpdate(update_poll_rate))
+                        .ok();
+                }
 
                 // Update client refresh rate
                 if update_fps > 0.0 {

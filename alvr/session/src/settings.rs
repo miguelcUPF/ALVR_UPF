@@ -1163,9 +1163,9 @@ pub struct Patches {
 #[derive(SettingsSchema, Serialize, Deserialize, Clone)]
 pub struct CustomConfig {
     #[schema(strings(
-        help = "Number of tracking polls per frame (e.g., at 90 fps, 3 polls/frame is equivalent to 270 polls/s)"
+        help = "Number of tracking polls per frame (e.g., at a client refresh rate of 90 Hz, 3 polls/frame is equivalent to 270 polls/s)"
     ))]
-    #[schema(flag = "steamvr-restart")]
+    #[schema(flag = "real-time")]
     #[schema(gui(slider(min = 0.1, max = 10.0, step = 0.1)), suffix = "polls/frame")]
     pub tracking_poll_rate: f32,
 

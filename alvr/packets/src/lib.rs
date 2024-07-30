@@ -52,6 +52,7 @@ pub struct DecoderInitializationConfig {
 pub enum ServerControlPacket {
     StartStream,
     FpsUpdate(f32),
+    PollRateUpdate(f32),
     InitializeDecoder(DecoderInitializationConfig),
     Restarting,
     KeepAlive,

@@ -523,7 +523,11 @@ fn connection_pipeline(
                         };
                         EVENT_QUEUE.lock().push_back(fps_update_event);
                     }
-
+                    Ok(ServerControlPacket::PollRateUpdate(poll_rate_update)) => {
+                        let poll_rate_update_event =
+                            ClientCoreEvent::PollRateUpdate { poll_rate_update };
+                        EVENT_QUEUE.lock().push_back(poll_rate_update_event);
+                    }
                     Ok(ServerControlPacket::InitializeDecoder(config)) => {
                         decoder::create_decoder(config, settings.video.force_software_decoder);
                     }

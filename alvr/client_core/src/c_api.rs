@@ -54,6 +54,9 @@ pub enum AlvrEvent {
     FpsUpdate {
         refresh_rate_update: f32,
     },
+    PollRateUpdate {
+        poll_rate_update: f32,
+    },
     StreamingStopped,
     Haptics {
         device_id: u64,
@@ -220,7 +223,14 @@ pub extern "C" fn alvr_poll_event(out_event: *mut AlvrEvent) -> bool {
                         .unwrap_or_default(),
                 }
             }
-            ClientCoreEvent::FpsUpdate {refresh_rate_update} => AlvrEvent::FpsUpdate {refresh_rate_update},
+            ClientCoreEvent::FpsUpdate {
+                refresh_rate_update,
+            } => AlvrEvent::FpsUpdate {
+                refresh_rate_update,
+            },
+            ClientCoreEvent::PollRateUpdate { poll_rate_update } => {
+                AlvrEvent::PollRateUpdate { poll_rate_update }
+            }
             ClientCoreEvent::StreamingStopped => AlvrEvent::StreamingStopped,
             ClientCoreEvent::Haptics {
                 device_id,
