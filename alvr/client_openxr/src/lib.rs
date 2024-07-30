@@ -552,8 +552,6 @@ fn initialize_stream(
         let poll_rate_hint = Arc::clone(&poll_rate_hint);
         move || {
             let mut deadline = Instant::now();
-            let mut actual_poll_rate = *poll_rate_hint.lock().unwrap();
-            let mut actual_input_rate = *refresh_rate_hint.lock().unwrap();
 
             while running.value() {
                 stream_input_pipeline(&xr_ctx, &interaction_ctx, &mut input_context);
