@@ -949,16 +949,29 @@ fn connection_pipeline(
         let control_sender = Arc::clone(&control_sender);
         let client_hostname = client_hostname.clone();
         let mut actual_fps = fps;
+        let mut actual_server_fps = fps;
         move || {
             while is_streaming(&client_hostname) {
-                let custom_manager_lock = SERVER_DATA_MANAGER.read();
-                let update_fps = &custom_manager_lock.settings().custom.update_fps;
-                if let Switch::Enabled(new_fps) = *update_fps {
+                let server_read_lock = SERVER_DATA_MANAGER.read();
+
+                let update_fps = match &server_read_lock.settings().custom.update_fps {
+                    Switch::Enabled(fps) => *fps,
+                    _ => 0.0,
+                };
+                let update_server_fps = match &server_read_lock.settings().custom.update_server_fps
+                {
+                    Switch::Enabled(fps) => *fps,
+                    _ => 0.0,
+                };
+                drop(server_read_lock);
+
+                // Update client refresh rate
+                if update_fps > 0.0 {
                     let new_supported_fps = {
                         let mut best_match = 0_f32;
                         let mut min_diff = f32::MAX;
                         for rr in &streaming_caps.supported_refresh_rates {
-                            let diff = (*rr - new_fps).abs();
+                            let diff = (*rr - update_fps).abs();
                             if diff < min_diff {
                                 best_match = *rr;
                                 min_diff = diff;
@@ -969,7 +982,7 @@ fn connection_pipeline(
                     if new_supported_fps != actual_fps {
                         actual_fps = new_supported_fps;
 
-                        if !streaming_caps.supported_refresh_rates.contains(&new_fps) {
+                        if !streaming_caps.supported_refresh_rates.contains(&update_fps) {
                             warn!(
                                 "Chosen update refresh rate not supported. Using {new_supported_fps}Hz"
                             );
@@ -988,6 +1001,34 @@ fn connection_pipeline(
                             .ok();
                     }
                 }
+
+                // Update server frame rate
+                let mut server_write_lock = SERVER_DATA_MANAGER.write();
+                if update_server_fps > 0.0 {
+                    if update_server_fps != actual_server_fps {
+                        actual_server_fps = update_server_fps;
+                        server_write_lock.session_mut().openvr_config.refresh_rate =
+                            update_server_fps as _;
+
+                        if let Some(stats) = &mut *STATISTICS_MANAGER.lock() {
+                            stats.update_frame_interval(update_server_fps);
+                        }
+                        BITRATE_MANAGER
+                            .lock()
+                            .update_nominal_frame_interval(update_server_fps);
+                    }
+                } else {
+                    if fps != actual_server_fps {
+                        actual_server_fps = fps;
+                        server_write_lock.session_mut().openvr_config.refresh_rate = fps as _;
+
+                        if let Some(stats) = &mut *STATISTICS_MANAGER.lock() {
+                            stats.update_frame_interval(fps);
+                        }
+                        BITRATE_MANAGER.lock().update_nominal_frame_interval(fps);
+                    }
+                }
+                drop(server_write_lock);
             }
         }
     });

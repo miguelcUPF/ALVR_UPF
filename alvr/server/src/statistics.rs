@@ -205,6 +205,10 @@ impl StatisticsManager {
         }
     }
 
+    pub fn update_frame_interval(&mut self, fps: f32) {
+        self.frame_interval = Duration::from_secs_f32(1.0 / fps);
+    }
+
     pub fn report_tracking_received(&mut self, target_timestamp: Duration) {
         if !self
             .history_buffer

@@ -1171,11 +1171,16 @@ pub struct CustomConfig {
 
     #[schema(strings(
         display_name = "Update client refresh rate",
-        help = "Enables generating video frames at a higher rate than the display rate. Supported client display rates: 60, 72, 80, 90, 120 Hz"
+        help = "Supported client display rates: 60, 72, 80, 90, 120 Hz"
     ))]
     #[schema(flag = "real-time")]
     #[schema(gui(slider(min = 60.0, max = 120.0)), suffix = "Hz")]
     pub update_fps: Switch<f32>,
+
+    #[schema(strings(display_name = "Update server frame rate"))]
+    #[schema(flag = "real-time")]
+    #[schema(gui(slider(min = 1.0, max = 120.0)), suffix = "Hz")]
+    pub update_server_fps: Switch<f32>,
 }
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone)]
@@ -1708,6 +1713,10 @@ pub fn session_settings_default() -> SettingsDefault {
         custom: CustomConfigDefault {
             tracking_poll_rate: 3.0,
             update_fps: SwitchDefault {
+                enabled: false,
+                content: 60.,
+            },
+            update_server_fps: SwitchDefault {
                 enabled: false,
                 content: 60.,
             },

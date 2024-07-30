@@ -74,6 +74,10 @@ impl BitrateManager {
         }
     }
 
+    pub fn update_nominal_frame_interval(&mut self, fps: f32) {
+        self.nominal_frame_interval = Duration::from_secs_f32(1. / fps);
+    }
+
     // Note: This is used to calculate the framerate/frame interval. The frame present is the most
     // accurate event for this use.
     pub fn report_frame_present(&mut self, config: &Switch<BitrateAdaptiveFramerateConfig>) {
