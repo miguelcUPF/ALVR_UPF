@@ -1,4 +1,5 @@
 use crate::{
+    ap_stats::APStats,
     bitrate::BitrateManager,
     face_tracking::FaceTrackingSink,
     hand_gestures::{trigger_hand_gesture_actions, HandGestureManager, HAND_GESTURE_BUTTON_SET},
@@ -33,6 +34,8 @@ use alvr_sockets::{
     PeerType, ProtoControlSocket, StreamSender, StreamSocketBuilder, KEEPALIVE_INTERVAL,
     KEEPALIVE_TIMEOUT,
 };
+use reqwest::blocking::get;
+use serde_json;
 use std::sync::RwLock;
 use std::{
     collections::{HashMap, HashSet},
@@ -603,7 +606,7 @@ fn connection_pipeline(
                         *guard = cloned_socket_map;
                     }
                     Err(_) => {
-                        warn!("Failed to acquire write lock in RTT hashmap");
+                        info!("Failed to acquire write lock in RTT hashmap");
                     }
                 }
 
@@ -1046,6 +1049,55 @@ fn connection_pipeline(
         }
     });
 
+    let http_server_thread = thread::spawn({
+        let client_hostname = client_hostname.clone();
+        move || {
+            let server_read_lock = SERVER_DATA_MANAGER.read();
+            if let Switch::Enabled(http_server) = &server_read_lock.settings().custom.http_server {
+                let ap_ip = http_server.ap_ip.clone();
+                let http_port = http_server.http_port;
+                let request_interval = http_server.request_interval;
+                drop(server_read_lock);
+
+                if !ap_ip.parse::<IpAddr>().is_ok() {
+                    warn!("Invalid IP address format: {}", ap_ip);
+                } else {
+                    let url = format!("http://{}:{}/", ap_ip, http_port);
+                    while is_streaming(&client_hostname) {
+                        match get(&url) {
+                            Ok(response) => {
+                                if response.status().is_success() {
+                                    match response.text() {
+                                        Ok(body) => {
+                                            // Parse JSON response
+                                            match serde_json::from_str::<APStats>(&body) {
+                                                Ok(stats) => {
+                                                    info!("Parsed response:\n{:#?}", stats) // TODO: do something with stats
+                                                }
+                                                Err(err) => info!("Failed to parse JSON: {}", err),
+                                            }
+                                        }
+                                        Err(err) => info!("Failed to read response body: {}", err),
+                                    }
+                                } else {
+                                    info!(
+                                        "Failed to get a successful response: {}",
+                                        response.status()
+                                    );
+                                }
+                            }
+                            Err(err) => info!("Request failed: {}", err),
+                        }
+
+                        thread::sleep(Duration::from_secs_f32(request_interval));
+                    }
+                }
+            } else {
+                info!("HTTP server is disabled.");
+            }
+        }
+    });
+
     let keepalive_thread = thread::spawn({
         let control_sender = Arc::clone(&control_sender);
         let disconnect_notif = Arc::clone(&disconnect_notif);
@@ -1361,6 +1413,7 @@ fn connection_pipeline(
     tracking_receive_thread.join().ok();
     statistics_thread.join().ok();
     custom_thread.join().ok();
+    http_server_thread.join().ok();
     control_receive_thread.join().ok();
     stream_receive_thread.join().ok();
     keepalive_thread.join().ok();

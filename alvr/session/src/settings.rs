@@ -1161,6 +1161,23 @@ pub struct Patches {
 }
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone)]
+pub struct HTTPserver {
+    #[schema(strings(display_name = "AP IPv4 address",))]
+    #[schema(flag = "steamvr-restart")]
+    pub ap_ip: String,
+
+    #[schema(strings(display_name = "HTTP server port",))]
+    #[schema(flag = "steamvr-restart")]
+    #[schema(gui(slider(min = 1, max = 65535)))]
+    pub http_port: u16,
+
+    #[schema(strings(display_name = "HTTP request interval",))]
+    #[schema(flag = "steamvr-restart")]
+    #[schema(gui(slider(min = 0.1, max = 10.0, step = 0.1)), suffix = "seconds")]
+    pub request_interval: f32,
+}
+
+#[derive(SettingsSchema, Serialize, Deserialize, Clone)]
 pub struct CustomConfig {
     #[schema(strings(
         help = "Number of tracking polls per frame (e.g., at a client refresh rate of 90 Hz, 3 polls/frame is equivalent to 270 polls/s)"
@@ -1181,6 +1198,13 @@ pub struct CustomConfig {
     #[schema(flag = "real-time")]
     #[schema(gui(slider(min = 1.0, max = 120.0)), suffix = "Hz")]
     pub update_server_fps: Switch<f32>,
+
+    #[schema(strings(
+        display_name = "AP's HTTP Server",
+        help = "Request network statistics from an access point's HTTP server"
+    ))]
+    #[schema(flag = "steamvr-restart")]
+    pub http_server: Switch<HTTPserver>,
 }
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone)]
@@ -1719,6 +1743,14 @@ pub fn session_settings_default() -> SettingsDefault {
             update_server_fps: SwitchDefault {
                 enabled: false,
                 content: 60.,
+            },
+            http_server: SwitchDefault {
+                enabled: false,
+                content: HTTPserverDefault {
+                    ap_ip: "192.168.1.1".to_string(),
+                    http_port: 8080,
+                    request_interval: 1.,
+                },
             },
         },
     }
