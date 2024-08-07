@@ -13,7 +13,7 @@ use alvr_audio::AudioDevice;
 use alvr_common::{
     debug, error,
     glam::UVec2,
-    info,
+    handle_ap_response, info,
     once_cell::sync::Lazy,
     parking_lot::{Condvar, RwLock},
     wait_rwlock, warn, AnyhowToCon, ConResult, ConnectionError, ConnectionState, LifecycleState,
@@ -29,6 +29,7 @@ use alvr_sockets::{
     ControlSocketSender, PeerType, ProtoControlSocket, StreamSender, StreamSocketBuilder,
     KEEPALIVE_INTERVAL, KEEPALIVE_TIMEOUT,
 };
+use reqwest::blocking::get;
 use serde_json as json;
 use std::{
     collections::HashMap,
@@ -527,6 +528,26 @@ fn connection_pipeline(
                         let poll_rate_update_event =
                             ClientCoreEvent::PollRateUpdate { poll_rate_update };
                         EVENT_QUEUE.lock().push_back(poll_rate_update_event);
+                    }
+                    Ok(ServerControlPacket::HTTPServer(url, request_interval)) => {
+                        thread::spawn(move || {
+                            while is_streaming() {
+                                match get(&url) {
+                                    Ok(response) => match handle_ap_response(response) {
+                                        Ok(body) => {
+                                            if let Some(sender) = &mut *CONTROL_SENDER.lock() {
+                                                sender.send(&ClientControlPacket::APResponse(body)).ok();
+                                            }
+                                        }
+                                        Err(err) => {
+                                            info!("{}", err);
+                                        }
+                                    },
+                                    Err(err) => info!("Request failed: {}", err),
+                                }
+                                thread::sleep(Duration::from_secs_f32(request_interval));
+                            }
+                        });
                     }
                     Ok(ServerControlPacket::InitializeDecoder(config)) => {
                         decoder::create_decoder(config, settings.video.force_software_decoder);

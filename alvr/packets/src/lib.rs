@@ -51,6 +51,7 @@ pub struct DecoderInitializationConfig {
 #[derive(Serialize, Deserialize)]
 pub enum ServerControlPacket {
     StartStream,
+    HTTPServer(String, f32),
     FpsUpdate(f32),
     PollRateUpdate(f32),
     InitializeDecoder(DecoderInitializationConfig),
@@ -128,6 +129,7 @@ pub enum ClientControlPacket {
     ReservedBuffer(Vec<u8>),
 
     NetworkStatistics(NetworkStatisticsPacket),
+    APResponse(String),
 }
 
 #[derive(Serialize, Deserialize, Default)]

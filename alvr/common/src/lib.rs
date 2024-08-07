@@ -4,6 +4,7 @@ mod inputs;
 mod logging;
 mod primitives;
 mod timely;
+mod response_handler;
 mod version;
 mod weighted;
 
@@ -26,6 +27,7 @@ pub use log::{debug, error, info, warn};
 pub use logging::*;
 pub use primitives::*;
 pub use timely::*;
+pub use response_handler::*;
 pub use version::*;
 pub use weighted::*;
 

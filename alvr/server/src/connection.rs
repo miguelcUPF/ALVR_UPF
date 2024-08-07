@@ -1,5 +1,5 @@
 use crate::{
-    ap_stats::APStats,
+    ap_stats::{APStats, Interface},
     bitrate::BitrateManager,
     face_tracking::FaceTrackingSink,
     hand_gestures::{trigger_hand_gesture_actions, HandGestureManager, HAND_GESTURE_BUTTON_SET},
@@ -15,7 +15,7 @@ use alvr_audio::AudioDevice;
 use alvr_common::{
     con_bail, debug, error,
     glam::{UVec2, Vec2},
-    info,
+    handle_ap_response, info,
     once_cell::sync::Lazy,
     parking_lot::{Condvar, Mutex},
     settings_schema::Switch,
@@ -29,7 +29,9 @@ use alvr_packets::{
     ServerControlPacket, StreamConfigPacket, Tracking, VideoPacketHeader, AUDIO, HAPTICS,
     STATISTICS, TRACKING, VIDEO,
 };
-use alvr_session::{BitrateMode, ControllersEmulationMode, FrameSize, OpenvrConfig, SessionConfig};
+use alvr_session::{
+    BitrateMode, ControllersEmulationMode, FetchSide, FrameSize, OpenvrConfig, SessionConfig,
+};
 use alvr_sockets::{
     PeerType, ProtoControlSocket, StreamSender, StreamSocketBuilder, KEEPALIVE_INTERVAL,
     KEEPALIVE_TIMEOUT,
@@ -77,6 +79,42 @@ fn is_streaming(client_hostname: &str) -> bool {
         .get(client_hostname)
         .map(|c| c.connection_state == ConnectionState::Streaming)
         .unwrap_or(false)
+}
+
+fn process_ap_response_body(body: &str, client_ip: IpAddr) {
+    // TODO
+    match serde_json::from_str::<APStats>(body) {
+        Ok(stats) => {
+            info!("Parsed response:\n{:#?}", stats); // TODO: do something with stats
+            let (clients_count, interface) = find_interface_for_client(&stats, client_ip);
+            info!("Number of clients {:?}", clients_count);
+            match interface {
+                Some(iface) => info!("Interface {:?}", iface),
+                None => info!("No interface found for client IP {}", client_ip),
+            }
+        }
+        Err(err) => info!("Failed to parse JSON: {}", err),
+    }
+}
+
+fn find_interface_for_client(stats: &APStats, client_ip: IpAddr) -> (usize, Option<&Interface>) {
+    // TODO
+    let mut clients_count = 0;
+    let mut interface = None;
+
+    for iface in &stats.interfaces {
+        if iface
+            .clients
+            .iter()
+            .any(|client| client.ip.parse::<IpAddr>().ok() == Some(client_ip))
+        {
+            clients_count = iface.clients.len();
+            interface = Some(iface);
+            break;
+        }
+    }
+
+    (clients_count, interface)
 }
 
 pub fn contruct_openvr_config(session: &SessionConfig) -> OpenvrConfig {
@@ -1049,72 +1087,44 @@ fn connection_pipeline(
         }
     });
 
-    let http_server_thread = thread::spawn({
+    let http_request_thread = thread::spawn({
         let client_hostname = client_hostname.clone();
+        let control_sender = Arc::clone(&control_sender);
         move || {
             let server_read_lock = SERVER_DATA_MANAGER.read();
             if let Switch::Enabled(http_server) = &server_read_lock.settings().custom.http_server {
                 let ap_ip = http_server.ap_ip.clone();
                 let http_port = http_server.http_port;
                 let request_interval = http_server.request_interval;
+                let fetch_from = http_server.fetch_from;
                 drop(server_read_lock);
 
                 if !ap_ip.parse::<IpAddr>().is_ok() {
                     warn!("Invalid IP address format: {}", ap_ip);
-                } else {
-                    let url = format!("http://{}:{}/", ap_ip, http_port);
+                    return;
+                }
+                let url = format!("http://{}:{}/", ap_ip, http_port);
+
+                if fetch_from == FetchSide::Server {
                     while is_streaming(&client_hostname) {
                         match get(&url) {
-                            Ok(response) => {
-                                if response.status().is_success() {
-                                    match response.text() {
-                                        Ok(body) => {
-                                            // Parse JSON response
-                                            match serde_json::from_str::<APStats>(&body) {
-                                                Ok(stats) => {
-                                                    info!("Parsed response:\n{:#?}", stats); // TODO: do something with stats
-                                                    let mut clients_count = 0;
-                                                    let mut interface = None;
-                                                    for iface in stats.interfaces {
-                                                        // Check if any client in this interface has the matching IP address
-                                                        if iface.clients.iter().any(|client| {
-                                                            match client.ip.parse::<IpAddr>() {
-                                                                Ok(ip) => ip == client_ip,
-                                                                Err(_) => false,
-                                                            }
-                                                        }) {
-                                                            clients_count = iface.clients.len();
-                                                            interface = Some(iface);
-                                                            break;
-                                                        }
-                                                    }
-                                                    match interface {
-                                                        Some(iface) => {
-                                                            warn!("Interface {:?}", iface);
-                                                        }
-                                                        None => {
-                                                            warn!("No interface found for client IP {}", client_ip);
-                                                        }
-                                                    }
-                                                    warn!("Number of clients {:?}", clients_count);
-                                                }
-                                                Err(err) => info!("Failed to parse JSON: {}", err),
-                                            }
-                                        }
-                                        Err(err) => info!("Failed to read response body: {}", err),
-                                    }
-                                } else {
-                                    info!(
-                                        "Failed to get a successful response: {}",
-                                        response.status()
-                                    );
+                            Ok(response) => match handle_ap_response(response) {
+                                Ok(body) => {
+                                    process_ap_response_body(&body, client_ip);
                                 }
-                            }
+                                Err(err) => {
+                                    info!("{}", err);
+                                }
+                            },
                             Err(err) => info!("Request failed: {}", err),
                         }
-
                         thread::sleep(Duration::from_secs_f32(request_interval));
                     }
+                } else {
+                    control_sender
+                        .lock()
+                        .send(&ServerControlPacket::HTTPServer(url, request_interval))
+                        .ok();
                 }
             } else {
                 info!("HTTP server is disabled.");
@@ -1209,7 +1219,6 @@ fn connection_pipeline(
                         }
                         unsafe { crate::RequestIDR() }
                     }
-
                     ClientControlPacket::NetworkStatistics(network_stats) => {
                         if let Some(stats) = &mut *STATISTICS_MANAGER.lock() {
                             let now = Instant::now();
@@ -1237,7 +1246,9 @@ fn connection_pipeline(
                             );
                         }
                     }
-
+                    ClientControlPacket::APResponse(body) => {
+                        process_ap_response_body(&body, client_ip);
+                    }
                     ClientControlPacket::VideoErrorReport => {
                         unsafe { crate::VideoErrorReportReceive() };
                     }
@@ -1437,7 +1448,7 @@ fn connection_pipeline(
     tracking_receive_thread.join().ok();
     statistics_thread.join().ok();
     custom_thread.join().ok();
-    http_server_thread.join().ok();
+    http_request_thread.join().ok();
     control_receive_thread.join().ok();
     stream_receive_thread.join().ok();
     keepalive_thread.join().ok();

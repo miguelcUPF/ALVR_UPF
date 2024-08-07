@@ -1160,6 +1160,16 @@ pub struct Patches {
     pub linux_async_reprojection: bool,
 }
 
+#[derive(SettingsSchema, Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
+#[schema(gui = "button_group")]
+pub enum FetchSide {
+    #[schema(strings(display_name = "Server"))]
+    Server = 0,
+
+    #[schema(strings(display_name = "Client"))]
+    Client = 1,
+}
+
 #[derive(SettingsSchema, Serialize, Deserialize, Clone)]
 pub struct HTTPserver {
     #[schema(strings(display_name = "AP IPv4 address",))]
@@ -1175,6 +1185,10 @@ pub struct HTTPserver {
     #[schema(flag = "steamvr-restart")]
     #[schema(gui(slider(min = 0.1, max = 10.0, step = 0.1)), suffix = "seconds")]
     pub request_interval: f32,
+
+    #[schema(strings(display_name = "Fetch from",))]
+    #[schema(flag = "steamvr-restart")]
+    pub fetch_from: FetchSide,
 }
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone)]
@@ -1750,6 +1764,9 @@ pub fn session_settings_default() -> SettingsDefault {
                     ap_ip: "192.168.1.1".to_string(),
                     http_port: 8080,
                     request_interval: 1.,
+                    fetch_from: FetchSideDefault {
+                        variant: FetchSideDefaultVariant::Server,
+                    },
                 },
             },
         },
