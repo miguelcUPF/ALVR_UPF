@@ -1072,7 +1072,31 @@ fn connection_pipeline(
                                             // Parse JSON response
                                             match serde_json::from_str::<APStats>(&body) {
                                                 Ok(stats) => {
-                                                    info!("Parsed response:\n{:#?}", stats) // TODO: do something with stats
+                                                    info!("Parsed response:\n{:#?}", stats); // TODO: do something with stats
+                                                    let mut clients_count = 0;
+                                                    let mut interface = None;
+                                                    for iface in stats.interfaces {
+                                                        // Check if any client in this interface has the matching IP address
+                                                        if iface.clients.iter().any(|client| {
+                                                            match client.ip.parse::<IpAddr>() {
+                                                                Ok(ip) => ip == client_ip,
+                                                                Err(_) => false,
+                                                            }
+                                                        }) {
+                                                            clients_count = iface.clients.len();
+                                                            interface = Some(iface);
+                                                            break;
+                                                        }
+                                                    }
+                                                    match interface {
+                                                        Some(iface) => {
+                                                            warn!("Interface {:?}", iface);
+                                                        }
+                                                        None => {
+                                                            warn!("No interface found for client IP {}", client_ip);
+                                                        }
+                                                    }
+                                                    warn!("Number of clients {:?}", clients_count);
                                                 }
                                                 Err(err) => info!("Failed to parse JSON: {}", err),
                                             }
