@@ -1097,13 +1097,21 @@ fn connection_pipeline(
                 let http_port = http_server.http_port;
                 let request_interval = http_server.request_interval;
                 let fetch_from = http_server.fetch_from;
+                let auto_ap_ip = match fetch_from {
+                    FetchSide::Server => false,
+                    FetchSide::Client { auto_ap_ip } => auto_ap_ip,
+                };
+
                 drop(server_read_lock);
 
-                if !ap_ip.parse::<IpAddr>().is_ok() {
-                    warn!("Invalid IP address format: {}", ap_ip);
-                    return;
-                }
                 let url = format!("http://{}:{}/", ap_ip, http_port);
+
+                if !auto_ap_ip {
+                    if !ap_ip.parse::<IpAddr>().is_ok() {
+                        warn!("Invalid IP address format: {}", ap_ip);
+                        return;
+                    }
+                }
 
                 if fetch_from == FetchSide::Server {
                     while is_streaming(&client_hostname) {
@@ -1123,7 +1131,11 @@ fn connection_pipeline(
                 } else {
                     control_sender
                         .lock()
-                        .send(&ServerControlPacket::HTTPServer(url, request_interval))
+                        .send(&ServerControlPacket::HTTPServer(
+                            url,
+                            request_interval,
+                            auto_ap_ip,
+                        ))
                         .ok();
                 }
             } else {

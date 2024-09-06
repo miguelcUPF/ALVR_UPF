@@ -136,6 +136,36 @@ pub fn local_ip() -> IpAddr {
     IpAddr::V4(Ipv4Addr::new(ip_arr[0], ip_arr[1], ip_arr[2], ip_arr[3]))
 }
 
+pub fn gateway_ip() -> IpAddr {
+    let vm = vm();
+    let mut env = vm.attach_current_thread().unwrap();
+
+    let wifi_manager = get_system_service(&mut env, "wifi");
+
+    let dhcp_info = env
+        .call_method(
+            wifi_manager,
+            "getDhcpInfo",
+            "()Landroid/net/DhcpInfo;",
+            &[],
+        )
+        .unwrap()
+        .l()
+        .unwrap();
+
+    // Get the gateway IP address from the DhcpInfo object
+    let gateway_i32 = env
+        .get_field(dhcp_info, "gateway", "I")
+        .unwrap()
+        .i()
+        .unwrap();
+
+    let gateway_ip_arr = gateway_i32.to_le_bytes();
+
+    IpAddr::V4(Ipv4Addr::new(gateway_ip_arr[0], gateway_ip_arr[1], gateway_ip_arr[2], gateway_ip_arr[3]))
+}
+
+
 // This is needed to avoid wifi scans that disrupt streaming.
 pub fn acquire_wifi_lock() {
     let mut maybe_wifi_lock = WIFI_LOCK.lock();

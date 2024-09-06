@@ -51,7 +51,7 @@ pub struct DecoderInitializationConfig {
 #[derive(Serialize, Deserialize)]
 pub enum ServerControlPacket {
     StartStream,
-    HTTPServer(String, f32),
+    HTTPServer(String, f32, bool),
     FpsUpdate(f32),
     PollRateUpdate(f32),
     InitializeDecoder(DecoderInitializationConfig),

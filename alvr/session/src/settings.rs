@@ -1164,18 +1164,21 @@ pub struct Patches {
 #[schema(gui = "button_group")]
 pub enum FetchSide {
     #[schema(strings(display_name = "Server"))]
-    Server = 0,
+    Server,
 
     #[schema(strings(display_name = "Client"))]
-    Client = 1,
+    Client {
+        #[schema(strings(
+            display_name = "Automatic AP IP@",
+            help = "Automatically discovers the access point IP address. If enabled, manual input is ignored.",
+        ))]
+        #[schema(flag = "steamvr-restart")]
+        auto_ap_ip: bool,
+    },
 }
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone)]
 pub struct HTTPserver {
-    #[schema(strings(display_name = "AP IPv4 address",))]
-    #[schema(flag = "steamvr-restart")]
-    pub ap_ip: String,
-
     #[schema(strings(display_name = "HTTP server port",))]
     #[schema(flag = "steamvr-restart")]
     #[schema(gui(slider(min = 1, max = 65535)))]
@@ -1189,6 +1192,10 @@ pub struct HTTPserver {
     #[schema(strings(display_name = "Fetch from",))]
     #[schema(flag = "steamvr-restart")]
     pub fetch_from: FetchSide,
+
+    #[schema(strings(display_name = "Manual AP IP@",))]
+    #[schema(flag = "steamvr-restart")]
+    pub ap_ip: String,
 }
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone)]
@@ -1765,6 +1772,7 @@ pub fn session_settings_default() -> SettingsDefault {
                     http_port: 8080,
                     request_interval: 1.,
                     fetch_from: FetchSideDefault {
+                        Client: FetchSideClientDefault { auto_ap_ip: true },
                         variant: FetchSideDefaultVariant::Server,
                     },
                 },

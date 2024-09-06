@@ -37,6 +37,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+use url::Url;
 
 #[cfg(target_os = "android")]
 use crate::audio;
@@ -80,10 +81,11 @@ pub static STATISTICS_SENDER: OptLazy<StreamSender<ClientStatistics>> =
 
 fn set_hud_message(message: &str) {
     let message = format!(
-        "ALVR v{}\nhostname: {}\nIP: {}\n\n{message}",
+        "ALVR v{}\nhostname: {}\nIP: {}\nGateway: {}\n\n{message}",
         *ALVR_VERSION,
         Config::load().hostname,
         platform::local_ip(),
+        platform::gateway_ip(),
     );
 
     EVENT_QUEUE
@@ -529,14 +531,29 @@ fn connection_pipeline(
                             ClientCoreEvent::PollRateUpdate { poll_rate_update };
                         EVENT_QUEUE.lock().push_back(poll_rate_update_event);
                     }
-                    Ok(ServerControlPacket::HTTPServer(url, request_interval)) => {
+                    Ok(ServerControlPacket::HTTPServer(url, request_interval, auto_ap_ip)) => {
                         thread::spawn(move || {
+                            let mut url = url;
+                            if auto_ap_ip {
+                                if let Ok(mut url_) = Url::parse(&url) {
+                                    let gateway_ip = platform::gateway_ip();
+
+                                    if url_.set_host(Some(&gateway_ip.to_string())).is_err() {
+                                        return;
+                                    }
+
+                                    url = url_.to_string();
+                                }
+                            }
+
                             while is_streaming() {
                                 match get(&url) {
                                     Ok(response) => match handle_ap_response(response) {
                                         Ok(body) => {
                                             if let Some(sender) = &mut *CONTROL_SENDER.lock() {
-                                                sender.send(&ClientControlPacket::APResponse(body)).ok();
+                                                sender
+                                                    .send(&ClientControlPacket::APResponse(body))
+                                                    .ok();
                                             }
                                         }
                                         Err(err) => {

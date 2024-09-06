@@ -21,6 +21,11 @@ pub fn local_ip() -> std::net::IpAddr {
     local_ip_address::local_ip().unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED))
 }
 
+#[cfg(not(any(target_os = "android")))]
+pub fn gateway_ip() -> std::net::IpAddr {
+    std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED)
+}
+
 #[cfg(target_os = "macos")]
 pub fn local_ip() -> std::net::IpAddr {
     std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED)
