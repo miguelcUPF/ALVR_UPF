@@ -1,8 +1,9 @@
-use alvr_common::{info, DeviceMotion, LogEntry, Pose};
+use alvr_common::{info, APStats, DeviceMotion, LogEntry, Pose};
 use alvr_packets::{AudioDevicesList, ButtonValue};
 use alvr_session::SessionConfig;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, time::Duration};
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct StatisticsSummary {
     pub video_packets_total: usize,
@@ -155,6 +156,7 @@ pub enum EventType {
     GraphStatistics(GraphStatistics),
     GraphNetworkStatistics(GraphNetworkStatistics),
     HeuristicStats(HeuristicStats),
+    APStatistics(APStats),
     Tracking(Box<TrackingEvent>),
     Buttons(Vec<ButtonEvent>),
     Haptics(HapticsEvent),

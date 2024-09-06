@@ -1,5 +1,4 @@
 use crate::{
-    ap_stats::{APStats, Interface},
     bitrate::BitrateManager,
     face_tracking::FaceTrackingSink,
     hand_gestures::{trigger_hand_gesture_actions, HandGestureManager, HAND_GESTURE_BUTTON_SET},
@@ -19,8 +18,8 @@ use alvr_common::{
     once_cell::sync::Lazy,
     parking_lot::{Condvar, Mutex},
     settings_schema::Switch,
-    warn, AnyhowToCon, ConResult, ConnectionError, ConnectionState, LifecycleState, OptLazy, ToCon,
-    BUTTON_INFO, CONTROLLER_PROFILE_INFO, DEVICE_ID_TO_PATH, HEAD_ID, LEFT_HAND_ID,
+    warn, APStats, AnyhowToCon, ConResult, ConnectionError, ConnectionState, LifecycleState,
+    OptLazy, ToCon, BUTTON_INFO, CONTROLLER_PROFILE_INFO, DEVICE_ID_TO_PATH, HEAD_ID, LEFT_HAND_ID,
     QUEST_CONTROLLER_PROFILE_PATH, RIGHT_HAND_ID,
 };
 use alvr_events::{ButtonEvent, EventType, HapticsEvent, TrackingEvent};
@@ -81,40 +80,17 @@ fn is_streaming(client_hostname: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn process_ap_response_body(body: &str, client_ip: IpAddr) {
-    // TODO
+fn process_ap_response_body(body: &str) -> Option<APStats> {
     match serde_json::from_str::<APStats>(body) {
         Ok(stats) => {
-            info!("Parsed response:\n{:#?}", stats); // TODO: do something with stats
-            let (clients_count, interface) = find_interface_for_client(&stats, client_ip);
-            info!("Number of clients {:?}", clients_count);
-            match interface {
-                Some(iface) => info!("Interface {:?}", iface),
-                None => info!("No interface found for client IP {}", client_ip),
-            }
+            //info!("Parsed response:\n{:#?}", stats);
+            Some(stats)
         }
-        Err(err) => info!("Failed to parse JSON: {}", err),
-    }
-}
-
-fn find_interface_for_client(stats: &APStats, client_ip: IpAddr) -> (usize, Option<&Interface>) {
-    // TODO
-    let mut clients_count = 0;
-    let mut interface = None;
-
-    for iface in &stats.interfaces {
-        if iface
-            .clients
-            .iter()
-            .any(|client| client.ip.parse::<IpAddr>().ok() == Some(client_ip))
-        {
-            clients_count = iface.clients.len();
-            interface = Some(iface);
-            break;
+        Err(err) => {
+            info!("Failed to parse JSON: {}", err);
+            None
         }
     }
-
-    (clients_count, interface)
 }
 
 pub fn contruct_openvr_config(session: &SessionConfig) -> OpenvrConfig {
@@ -588,8 +564,12 @@ fn connection_pipeline(
         initial_bitrate = *initial_bitrate_mbps;
     }
 
-    *BITRATE_MANAGER.lock() =
-        BitrateManager::new(settings.video.bitrate.history_size, fps, initial_bitrate);
+    *BITRATE_MANAGER.lock() = BitrateManager::new(
+        settings.video.bitrate.history_size,
+        fps,
+        initial_bitrate,
+        client_ip,
+    );
 
     let mut stream_socket = StreamSocketBuilder::connect_to_client(
         HANDSHAKE_ACTION_TIMEOUT,
@@ -1118,7 +1098,12 @@ fn connection_pipeline(
                         match get(&url) {
                             Ok(response) => match handle_ap_response(response) {
                                 Ok(body) => {
-                                    process_ap_response_body(&body, client_ip);
+                                    if let Some(ap_stats) = process_ap_response_body(&body) {
+                                        if let Some(stats) = &mut *STATISTICS_MANAGER.lock() {
+                                            stats.report_ap_statistics(&ap_stats);
+                                        }
+                                        BITRATE_MANAGER.lock().report_ap_statistics(&ap_stats);
+                                    };
                                 }
                                 Err(err) => {
                                     info!("{}", err);
@@ -1259,7 +1244,12 @@ fn connection_pipeline(
                         }
                     }
                     ClientControlPacket::APResponse(body) => {
-                        process_ap_response_body(&body, client_ip);
+                        if let Some(ap_stats) = process_ap_response_body(&body) {
+                            if let Some(stats) = &mut *STATISTICS_MANAGER.lock() {
+                                stats.report_ap_statistics(&ap_stats);
+                            }
+                            BITRATE_MANAGER.lock().report_ap_statistics(&ap_stats);
+                        };
                     }
                     ClientControlPacket::VideoErrorReport => {
                         unsafe { crate::VideoErrorReportReceive() };

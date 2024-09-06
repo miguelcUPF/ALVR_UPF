@@ -1,10 +1,11 @@
+mod ap_stats;
 mod average;
 mod connection_result;
 mod inputs;
 mod logging;
 mod primitives;
-mod timely;
 mod response_handler;
+mod timely;
 mod version;
 mod weighted;
 
@@ -20,14 +21,15 @@ pub use parking_lot;
 pub use semver;
 pub use settings_schema;
 
+pub use ap_stats::*;
 pub use average::*;
 pub use connection_result::*;
 pub use inputs::*;
 pub use log::{debug, error, info, warn};
 pub use logging::*;
 pub use primitives::*;
-pub use timely::*;
 pub use response_handler::*;
+pub use timely::*;
 pub use version::*;
 pub use weighted::*;
 

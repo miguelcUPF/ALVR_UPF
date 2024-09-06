@@ -1,11 +1,12 @@
 use crate::FfiDynamicEncoderParams;
-use alvr_common::SlidingWindowAverage;
+use alvr_common::{info, warn, APStats, Client, Interface, SlidingWindowAverage};
 use alvr_events::{EventType, HeuristicStats, NominalBitrateStats};
 use alvr_session::{
     settings_schema::Switch, BitrateAdaptiveFramerateConfig, BitrateConfig, BitrateMode,
 };
 use std::{
     collections::VecDeque,
+    net::IpAddr,
     time::{Duration, Instant},
 };
 
@@ -15,6 +16,8 @@ use rand::{thread_rng, Rng};
 const UPDATE_INTERVAL: Duration = Duration::from_secs(1);
 
 pub struct BitrateManager {
+    client_ip: IpAddr,
+
     nominal_frame_interval: Duration,
     frame_interval_average: SlidingWindowAverage<Duration>,
     // note: why packet_sizes_bits_history is a queue and not a sliding average? Because some
@@ -36,10 +39,19 @@ pub struct BitrateManager {
     rtt_average: SlidingWindowAverage<Duration>,
     peak_throughput_average: SlidingWindowAverage<f32>,
     frame_interarrival_average: SlidingWindowAverage<f32>,
+
+    ap_stats_current: Option<APStats>,
 }
 impl BitrateManager {
-    pub fn new(max_history_size: usize, initial_framerate: f32, initial_bitrate: f32) -> Self {
+    pub fn new(
+        max_history_size: usize,
+        initial_framerate: f32,
+        initial_bitrate: f32,
+        client_ip: IpAddr,
+    ) -> Self {
         Self {
+            client_ip: client_ip,
+
             nominal_frame_interval: Duration::from_secs_f32(1. / initial_framerate),
             frame_interval_average: SlidingWindowAverage::new(
                 Duration::from_millis(16),
@@ -71,11 +83,36 @@ impl BitrateManager {
                 1. / initial_framerate,
                 max_history_size,
             ),
+
+            ap_stats_current: None,
         }
     }
 
     pub fn update_nominal_frame_interval(&mut self, fps: f32) {
         self.nominal_frame_interval = Duration::from_secs_f32(1. / fps);
+    }
+
+    pub fn find_client_interface(
+        &mut self,
+        ap_stats: &APStats,
+        client_ip: IpAddr,
+    ) -> (Option<Interface>, Option<Client>) {
+        let mut interface = None;
+        let mut client_ap_stats = None;
+
+        for iface in &ap_stats.interfaces {
+            for client in &iface.clients {
+                if client.ip.parse::<IpAddr>().ok() == Some(client_ip) {
+                    interface = Some(iface.clone());
+                    client_ap_stats = Some(client.clone());
+                    break;
+                }
+            }
+            if client_ap_stats.is_some() {
+                break;
+            }
+        }
+        (interface, client_ap_stats)
     }
 
     // Note: This is used to calculate the framerate/frame interval. The frame present is the most
@@ -127,6 +164,30 @@ impl BitrateManager {
 
         self.frame_interarrival_average
             .submit_sample(frame_interarrival_s);
+    }
+
+    pub fn report_ap_statistics(
+        // TODO
+        &mut self,
+        ap_stats: &APStats,
+    ) {
+        self.ap_stats_current = Some(ap_stats.clone());
+
+        let client_ip = self.client_ip;
+
+        // TODO: move to ABR implementation
+        let (interface, client_ap_stats) = self.find_client_interface(&ap_stats, client_ip);
+        match interface {
+            Some(iface) => {
+                info!("Interface {:?}", iface);
+                info!("Number of clients {:?}", iface.clients.len());
+            }
+            None => warn!(
+                "No interface found for client IP {} in AP statistics",
+                client_ip
+            ),
+        };
+        info!("Client AP stats {:?}", client_ap_stats);
     }
 
     pub fn report_frame_latencies(

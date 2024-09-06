@@ -1,4 +1,3 @@
-mod ap_stats;
 mod bitrate;
 mod c_api;
 mod connection;
@@ -46,6 +45,7 @@ use std::{
     ffi::{c_char, c_void, CStr, CString},
     fs::File,
     io::Write,
+    net::{IpAddr, Ipv4Addr},
     ptr,
     sync::Once,
     thread::{self, JoinHandle},
@@ -68,8 +68,14 @@ static SERVER_DATA_MANAGER: Lazy<RwLock<ServerDataManager>> =
 static WEBSERVER_RUNTIME: OptLazy<Runtime> = Lazy::new(|| Mutex::new(Runtime::new().ok()));
 
 static STATISTICS_MANAGER: OptLazy<StatisticsManager> = alvr_common::lazy_mut_none();
-static BITRATE_MANAGER: Lazy<Mutex<BitrateManager>> =
-    Lazy::new(|| Mutex::new(BitrateManager::new(256, 60.0, 30.0)));
+static BITRATE_MANAGER: Lazy<Mutex<BitrateManager>> = Lazy::new(|| {
+    Mutex::new(BitrateManager::new(
+        256,
+        60.0,
+        30.0,
+        IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+    ))
+});
 
 pub struct VideoPacket {
     pub header: VideoPacketHeader,

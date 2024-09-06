@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct APStats {
     pub interfaces: Vec<Interface>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Interface {
     pub interface: String,
     pub mac: String,
@@ -27,10 +27,15 @@ pub struct Interface {
     pub tx_cmp_s: String,
     pub rx_mcst_s: String,
     pub if_util: String,
+    pub ch_active_time_ms: String,
+    pub ch_busy_time_ms: String,
+    pub ch_rx_time_ms: String,
+    pub ch_bss_rx_time_ms: String,
+    pub ch_tx_time_ms: String,
     pub clients: Vec<Client>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Client {
     pub ip: String,
     pub mac: String,
@@ -45,7 +50,7 @@ pub struct Client {
     pub expected_throughput_mbps: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RxStats {
     pub bitrate_mbps: String,
     pub mcs: String,
@@ -55,7 +60,7 @@ pub struct RxStats {
     pub bytes: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TxStats {
     pub bitrate_mbps: String,
     pub mcs: String,

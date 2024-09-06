@@ -1,4 +1,6 @@
-use alvr_common::{SlidingWindowAverage, SlidingWindowTimely, SlidingWindowWeighted, HEAD_ID};
+use alvr_common::{
+    APStats, SlidingWindowAverage, SlidingWindowTimely, SlidingWindowWeighted, HEAD_ID,
+};
 use alvr_events::{
     EventType, GraphNetworkStatistics, GraphStatistics, NominalBitrateStats, StatisticsSummary,
 };
@@ -677,6 +679,10 @@ impl StatisticsManager {
         } else {
             Duration::ZERO
         }
+    }
+
+    pub fn report_ap_statistics(&mut self, ap_stats: &APStats) {
+        alvr_events::send_event(EventType::APStatistics(ap_stats.clone()));
     }
 
     pub fn video_pipeline_latency_average(&self) -> Duration {
