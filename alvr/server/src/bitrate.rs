@@ -1,5 +1,5 @@
 use crate::FfiDynamicEncoderParams;
-use alvr_common::{info, warn, APStats, Client, Interface, SlidingWindowAverage};
+use alvr_common::{warn, APStats, Client, Interface, SlidingWindowAverage};
 use alvr_events::{EventType, HeuristicStats, NominalBitrateStats};
 use alvr_session::{
     settings_schema::Switch, BitrateAdaptiveFramerateConfig, BitrateConfig, BitrateMode,
@@ -179,15 +179,17 @@ impl BitrateManager {
         let (interface, client_ap_stats) = self.find_client_interface(&ap_stats, client_ip);
         match interface {
             Some(iface) => {
-                info!("Interface {:?}", iface);
-                info!("Number of clients {:?}", iface.clients.len());
+                let _iface = iface; // TODO: remove
+                let _client_ap_stats = client_ap_stats; // TODO: remove
+                //info!("Interface {:?}", iface);
+                //info!("Number of clients {:?}", iface.clients.len());
             }
             None => warn!(
                 "No interface found for client IP {} in AP statistics",
                 client_ip
             ),
         };
-        info!("Client AP stats {:?}", client_ap_stats);
+        //info!("Client AP stats {:?}", client_ap_stats);
     }
 
     pub fn report_frame_latencies(
@@ -287,6 +289,7 @@ impl BitrateManager {
                 min_bitrate_mbps,
                 initial_bitrate_mbps,
                 step_size_mbps,
+                r_step_size_mbps,
                 capacity_scaling_factor,
                 rtt_explor_prob,
                 nfr_thresh,
@@ -337,6 +340,7 @@ impl BitrateManager {
 
                 let estimated_capacity_bps = self.peak_throughput_average.get_average();
                 let steps_bps = *step_size_mbps * 1E6;
+                let r_steps_bps = *r_step_size_mbps * 1E6;
 
                 let threshold_fps = *nfr_thresh * server_fps;
                 let threshold_rtt = frame_interval_s * *rtt_thresh_scaling_factor;
@@ -345,7 +349,7 @@ impl BitrateManager {
                 if heur_fps >= threshold_fps {
                     if rtt_avg_heur_s > threshold_rtt {
                         if random_prob >= threshold_u {
-                            bitrate_bps -= steps_bps; // decrease bitrate by 1 step
+                            bitrate_bps -= r_steps_bps; // decrease bitrate by 1 step
                         }
                     } else {
                         if random_prob <= threshold_u {
@@ -353,7 +357,7 @@ impl BitrateManager {
                         }
                     }
                 } else {
-                    bitrate_bps -= steps_bps; // decrease bitrate by 1 step
+                    bitrate_bps -= r_steps_bps; // decrease bitrate by 1 step
                 }
 
                 // Ensure bitrate is within allowed range
@@ -371,6 +375,7 @@ impl BitrateManager {
                     frame_interval_s: frame_interval_s,
                     server_fps: server_fps, // fps_tx
                     steps_bps: steps_bps,
+                    r_steps_bps: r_steps_bps,
 
                     network_heur_fps: heur_fps, // fps_rx
                     rtt_avg_heur_s: rtt_avg_heur_s,

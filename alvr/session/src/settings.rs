@@ -317,10 +317,15 @@ pub enum BitrateMode {
         #[schema(gui(slider(min = 1.0, max = 1000.0, logarithmic)), suffix = "Mbps")]
         initial_bitrate_mbps: f32,
 
-        #[schema(strings(display_name = "Step size (beta)"))]
+        #[schema(strings(display_name = "Increment step size (beta)"))]
         #[schema(flag = "real-time")]
         #[schema(gui(slider(min = 1.0, max = 100.0, logarithmic)), suffix = "Mbps")]
         step_size_mbps: f32,
+
+        #[schema(strings(display_name = "Reduction step size (beta)"))]
+        #[schema(flag = "real-time")]
+        #[schema(gui(slider(min = 1.0, max = 100.0, logarithmic)), suffix = "Mbps")]
+        r_step_size_mbps: f32,
 
         #[schema(strings(display_name = "Estimated capacity scaling factor (m)"))]
         #[schema(flag = "real-time")]
@@ -1326,6 +1331,7 @@ pub fn session_settings_default() -> SettingsDefault {
                         initial_bitrate_mbps: 30.0,
 
                         step_size_mbps: 10.0,
+                        r_step_size_mbps: 10.0,
 
                         capacity_scaling_factor: 0.9,
 

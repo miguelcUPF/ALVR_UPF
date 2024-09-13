@@ -110,6 +110,7 @@ pub struct HeuristicStats {
     pub frame_interval_s: f32,
     pub server_fps: f32,
     pub steps_bps: f32,
+    pub r_steps_bps: f32,
 
     pub network_heur_fps: f32,
     pub rtt_avg_heur_s: f32,
