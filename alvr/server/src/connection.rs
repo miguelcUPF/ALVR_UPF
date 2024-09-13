@@ -1095,6 +1095,7 @@ fn connection_pipeline(
 
                 if fetch_from == FetchSide::Server {
                     while is_streaming(&client_hostname) {
+                        let start_time = Instant::now();
                         match get(&url) {
                             Ok(response) => match handle_ap_response(response) {
                                 Ok(body) => {
@@ -1111,7 +1112,14 @@ fn connection_pipeline(
                             },
                             Err(err) => info!("Request failed: {}", err),
                         }
-                        thread::sleep(Duration::from_secs_f32(request_interval));
+                        let elapsed = start_time.elapsed();
+                        let sleep_duration = if elapsed >= Duration::from_secs_f32(request_interval)
+                        {
+                            Duration::ZERO
+                        } else {
+                            Duration::from_secs_f32(request_interval) - elapsed
+                        };
+                        thread::sleep(sleep_duration);
                     }
                 } else {
                     control_sender
