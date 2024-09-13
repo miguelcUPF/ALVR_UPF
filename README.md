@@ -64,15 +64,14 @@ as described in ["Analysis and design of the google congestion control for web r
 
 ## NeSt-VR overview
 
-NeSt-VR applies a hierarchical decision-making process, operating every $\tau$ seconds and progressively adjusting the target bitrate ($B_v$) —initially set to ($B_0$) Mbps— in $\beta$ Mbps steps to avoid significant video quality shifts that may disrupt the user’s QoE. NeSt-VR uses the Network Frame Ratio (NFR) and VF-RTT —averaged over an $n$-sample sliding window ($\overline{\;\centerdot\;}$)— as inputs, adjusting the bitrate if their values surpass configurable thresholds ($\rho$ and $\sigma$, respectively). The target bitrate is also constrained within the configured maximum and minimum bitrate limits ($B_{\max}$ and $B_{\min}$) and is further upper bounded by $m \cdot C_{\text{NeSt-VR}}$ —with $m \leq 1$— to  ensure the bitrate remains under our estimated network capacity ($C_{\text{NeSt-VR}}$):
+NeSt-VR applies a hierarchical decision-making process, operating every $\tau$ seconds and progressively adjusting the target bitrate ($B_v$) —initially set to ($B_0$) Mbps— in $\beta$ Mbps steps to avoid significant video quality shifts that may disrupt the user’s QoE. NeSt-VR uses the Network Frame Ratio (NFR) and VF-RTT —averaged over an $n$-sample sliding window ($\overline{\centerdot}$)— as inputs, adjusting the bitrate if their values surpass configurable thresholds ($\rho$ and $\sigma$, respectively). The target bitrate is also constrained within the configured maximum and minimum bitrate limits ($B_{\max}$ and $B_{\min}$) and is further upper bounded by $m \cdot C_{\text{NeSt-VR}}$ —with $m \leq 1$— to  ensure the bitrate remains under our estimated network capacity ($C_{\text{NeSt-VR}}$):
 
 
 <div style="text-align:center">
 <img src="./images/stepwise-abr-nest.png" alt="nestvr" width="300"/>
 </div>
 
-> **Note:** NFR is computed as $\overline{\text{fps}_{\rm rx}}/{\overline{\text{fps}_{\rm tx}}}$. $\overline{\text{fps}_{\rm rx}}$ denotes the average frame delivery rate
-and $\overline{\text{fps}_{\rm tx}}$ denotes the average frame transmission rate (`network_heur_fps` and `server_fps`, respectively, in `HeuristicStats`)
+> **Note:** NFR is computed as `fps_rx / fps_tx`, where `fps_rx` denotes the average frame delivery rate and `fps_tx` denotes the average frame transmission rate (`network_heur_fps` and `server_fps`, respectively, in `HeuristicStats`)
 
 > **Note:** $\sigma$ is computed as $\varsigma/{\overline{\Delta_{\rm tx}}}$. $\varsigma$ is a configurable parameter and $\overline{\Delta_{\rm tx}}$ denotes the average interval between consecutive VFs transmissions
 
