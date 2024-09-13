@@ -112,13 +112,18 @@ void VideoEncoderNVENC::Transmit(ID3D11Texture2D *pTexture, uint64_t presentatio
 	}
 	m_NvNecoder->EncodeFrame(vPacket, &picParams);
 
+	bool is_idr = false;
+	if (picParams.pictureType == NV_ENC_PIC_TYPE_IDR || insertIDR == true ) {
+		is_idr = true;
+	} 
+
 	for (std::vector<uint8_t> &packet : vPacket)
 	{
 		if (fpOut) {
 			fpOut.write(reinterpret_cast<char*>(packet.data()), packet.size());
 		}
 		
-		ParseFrameNals(m_codec, packet.data(), (int)packet.size(), targetTimestampNs, insertIDR);
+		ParseFrameNals(m_codec, packet.data(), (int)packet.size(), targetTimestampNs, is_idr);
 	}
 }
 
