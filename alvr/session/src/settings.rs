@@ -260,46 +260,12 @@ pub struct DecoderLatencyLimiter {
 }
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone, PartialEq)]
-#[schema(gui = "button_group")]
-pub enum BitrateMode {
-    #[schema(strings(display_name = "Constant"))]
-    ConstantMbps(#[schema(gui(slider(min = 5, max = 1000, logarithmic)), suffix = "Mbps")] u64),
-
+pub enum NestVrProfile {
+    Generic,
+    Mobility,
+    Dense,
     #[schema(collapsible)]
-    Adaptive {
-        #[schema(strings(
-            help = "Percentage of network bandwidth to allocate for video transmission"
-        ))]
-        #[schema(flag = "real-time")]
-        #[schema(gui(slider(min = 0.5, max = 5.0, step = 0.01)))]
-        saturation_multiplier: f32,
-
-        #[schema(strings(display_name = "Maximum bitrate"))]
-        #[schema(flag = "real-time")]
-        #[schema(gui(slider(min = 1, max = 1000, logarithmic)), suffix = "Mbps")]
-        max_bitrate_mbps: Switch<u64>,
-
-        #[schema(strings(display_name = "Minimum bitrate"))]
-        #[schema(flag = "real-time")]
-        #[schema(gui(slider(min = 1, max = 100, logarithmic)), suffix = "Mbps")]
-        min_bitrate_mbps: Switch<u64>,
-
-        #[schema(strings(display_name = "Maximum network latency"))]
-        #[schema(flag = "real-time")]
-        #[schema(gui(slider(min = 1, max = 50)), suffix = "ms")]
-        max_network_latency_ms: Switch<u64>,
-
-        #[schema(flag = "real-time")]
-        encoder_latency_limiter: Switch<EncoderLatencyLimiter>,
-
-        #[schema(strings(
-            help = "Currently there is a bug where the decoder latency keeps rising when above a certain bitrate"
-        ))]
-        #[schema(flag = "real-time")]
-        decoder_latency_limiter: Switch<DecoderLatencyLimiter>,
-    },
-    #[schema(collapsible)]
-    NestVr {
+    Custom {
         #[schema(strings(display_name = "Adjustment period (tau)"))]
         #[schema(flag = "real-time")]
         #[schema(gui(slider(min = 0.1, max = 10.0, logarithmic)), suffix = "s")]
@@ -346,6 +312,52 @@ pub enum BitrateMode {
         #[schema(flag = "real-time")]
         #[schema(gui(slider(min = 0.1, max = 5.0, logarithmic)))]
         rtt_thresh_scaling_factor: f32,
+    },
+}
+
+#[derive(SettingsSchema, Serialize, Deserialize, Clone, PartialEq)]
+#[schema(gui = "button_group")]
+pub enum BitrateMode {
+    #[schema(strings(display_name = "Constant"))]
+    ConstantMbps(#[schema(gui(slider(min = 5, max = 1000, logarithmic)), suffix = "Mbps")] u64),
+
+    #[schema(collapsible)]
+    Adaptive {
+        #[schema(strings(
+            help = "Percentage of network bandwidth to allocate for video transmission"
+        ))]
+        #[schema(flag = "real-time")]
+        #[schema(gui(slider(min = 0.5, max = 5.0, step = 0.01)))]
+        saturation_multiplier: f32,
+
+        #[schema(strings(display_name = "Maximum bitrate"))]
+        #[schema(flag = "real-time")]
+        #[schema(gui(slider(min = 1, max = 1000, logarithmic)), suffix = "Mbps")]
+        max_bitrate_mbps: Switch<u64>,
+
+        #[schema(strings(display_name = "Minimum bitrate"))]
+        #[schema(flag = "real-time")]
+        #[schema(gui(slider(min = 1, max = 100, logarithmic)), suffix = "Mbps")]
+        min_bitrate_mbps: Switch<u64>,
+
+        #[schema(strings(display_name = "Maximum network latency"))]
+        #[schema(flag = "real-time")]
+        #[schema(gui(slider(min = 1, max = 50)), suffix = "ms")]
+        max_network_latency_ms: Switch<u64>,
+
+        #[schema(flag = "real-time")]
+        encoder_latency_limiter: Switch<EncoderLatencyLimiter>,
+
+        #[schema(strings(
+            help = "Currently there is a bug where the decoder latency keeps rising when above a certain bitrate"
+        ))]
+        #[schema(flag = "real-time")]
+        decoder_latency_limiter: Switch<DecoderLatencyLimiter>,
+    },
+
+    NestVr {
+        #[schema(strings(display_name = "Profile"))]
+        nest_vr_profile: NestVrProfile,
     },
 }
 
@@ -1316,30 +1328,35 @@ pub fn session_settings_default() -> SettingsDefault {
                         },
                     },
                     NestVr: BitrateModeNestVrDefault {
-                        gui_collapsed: false,
+                        nest_vr_profile: NestVrProfileDefault {
+                            Custom: NestVrProfileCustomDefault {
+                                gui_collapsed: false,
 
-                        update_interval_nestvr_s: 1.0,
+                                update_interval_nestvr_s: 1.0,
 
-                        max_bitrate_mbps: SwitchDefault {
-                            enabled: true,
-                            content: 100.0,
+                                max_bitrate_mbps: SwitchDefault {
+                                    enabled: true,
+                                    content: 100.0,
+                                },
+                                min_bitrate_mbps: SwitchDefault {
+                                    enabled: true,
+                                    content: 10.0,
+                                },
+                                initial_bitrate_mbps: 30.0,
+
+                                step_size_mbps: 10.0,
+                                r_step_size_mbps: 10.0,
+
+                                capacity_scaling_factor: 0.9,
+
+                                rtt_explor_prob: 0.25,
+
+                                nfr_thresh: 0.95,
+
+                                rtt_thresh_scaling_factor: 2.0,
+                            },
+                            variant: NestVrProfileDefaultVariant::Custom,
                         },
-                        min_bitrate_mbps: SwitchDefault {
-                            enabled: true,
-                            content: 10.0,
-                        },
-                        initial_bitrate_mbps: 30.0,
-
-                        step_size_mbps: 10.0,
-                        r_step_size_mbps: 10.0,
-
-                        capacity_scaling_factor: 0.9,
-
-                        rtt_explor_prob: 0.25,
-
-                        nfr_thresh: 0.95,
-
-                        rtt_thresh_scaling_factor: 2.0,
                     },
                     variant: BitrateModeDefaultVariant::NestVr,
                 },

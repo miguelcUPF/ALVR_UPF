@@ -29,7 +29,7 @@ use alvr_packets::{
     STATISTICS, TRACKING, VIDEO,
 };
 use alvr_session::{
-    BitrateMode, ControllersEmulationMode, FetchSide, FrameSize, OpenvrConfig, SessionConfig,
+    get_profile_config, BitrateMode, ControllersEmulationMode, FetchSide, FrameSize, OpenvrConfig, SessionConfig,
 };
 use alvr_sockets::{
     PeerType, ProtoControlSocket, StreamSender, StreamSocketBuilder, KEEPALIVE_INTERVAL,
@@ -557,11 +557,12 @@ fn connection_pipeline(
     let config_mode = &server_data_lock.settings().video.bitrate.mode;
 
     if let BitrateMode::NestVr {
-        initial_bitrate_mbps,
-        ..
-    } = &config_mode
+        nest_vr_profile, ..
+    } = config_mode
     {
-        initial_bitrate = *initial_bitrate_mbps;
+        let profile_config = get_profile_config(nest_vr_profile);
+
+        initial_bitrate = profile_config.initial_bitrate_mbps;
     }
 
     *BITRATE_MANAGER.lock() = BitrateManager::new(

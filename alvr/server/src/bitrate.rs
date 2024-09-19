@@ -2,7 +2,8 @@ use crate::FfiDynamicEncoderParams;
 use alvr_common::{warn, APStats, Client, Interface, SlidingWindowAverage};
 use alvr_events::{EventType, HeuristicStats, NominalBitrateStats};
 use alvr_session::{
-    settings_schema::Switch, BitrateAdaptiveFramerateConfig, BitrateConfig, BitrateMode,
+    get_profile_config, settings_schema::Switch, BitrateAdaptiveFramerateConfig, BitrateConfig,
+    BitrateMode,
 };
 use std::{
     collections::VecDeque,
@@ -181,8 +182,8 @@ impl BitrateManager {
             Some(iface) => {
                 let _iface = iface; // TODO: remove
                 let _client_ap_stats = client_ap_stats; // TODO: remove
-                //info!("Interface {:?}", iface);
-                //info!("Number of clients {:?}", iface.clients.len());
+                                                        //info!("Interface {:?}", iface);
+                                                        //info!("Number of clients {:?}", iface.clients.len());
             }
             None => warn!(
                 "No interface found for client IP {} in AP statistics",
@@ -247,11 +248,13 @@ impl BitrateManager {
         let now = Instant::now();
 
         if let BitrateMode::NestVr {
-            update_interval_nestvr_s,
-            ..
+            nest_vr_profile, ..
         } = &config.mode
         {
-            self.update_interval_s = Duration::from_secs_f32(*update_interval_nestvr_s);
+            let profile_config = get_profile_config(&nest_vr_profile);
+
+            self.update_interval_s =
+                Duration::from_secs_f32(profile_config.update_interval_nestvr_s);
         } else {
             self.update_interval_s = UPDATE_INTERVAL;
         }
@@ -285,16 +288,7 @@ impl BitrateManager {
         let bitrate_bps = match &config.mode {
             BitrateMode::ConstantMbps(bitrate_mbps) => *bitrate_mbps as f32 * 1e6,
             BitrateMode::NestVr {
-                max_bitrate_mbps,
-                min_bitrate_mbps,
-                initial_bitrate_mbps,
-                step_size_mbps,
-                r_step_size_mbps,
-                capacity_scaling_factor,
-                rtt_explor_prob,
-                nfr_thresh,
-                rtt_thresh_scaling_factor,
-                ..
+                nest_vr_profile, ..
             } => {
                 fn floor_to_nearest_mult_from_initial(value: f32, step: f32, initial: f32) -> f32 {
                     initial + ((value - initial) / step).floor() * step
@@ -302,20 +296,22 @@ impl BitrateManager {
 
                 fn minmax_bitrate(
                     bitrate_bps: f32,
-                    max_bitrate_mbps: &Switch<f32>,
-                    min_bitrate_mbps: &Switch<f32>,
+                    max_bitrate_mbps: Option<f32>,
+                    min_bitrate_mbps: Option<f32>,
                 ) -> f32 {
                     let mut bitrate = bitrate_bps;
-                    if let Switch::Enabled(max) = max_bitrate_mbps {
-                        let max = *max as f32 * 1e6;
+                    if let Some(max) = max_bitrate_mbps {
+                        let max = max as f32 * 1e6;
                         bitrate = f32::min(bitrate, max);
                     }
-                    if let Switch::Enabled(min) = min_bitrate_mbps {
-                        let min = *min as f32 * 1e6;
+                    if let Some(min) = min_bitrate_mbps {
+                        let min = min as f32 * 1e6;
                         bitrate = f32::max(bitrate, min);
                     }
                     bitrate
                 }
+
+                let profile_config = get_profile_config(&nest_vr_profile);
 
                 // Sample from uniform distribution
                 let mut rng = thread_rng();
@@ -339,12 +335,12 @@ impl BitrateManager {
                 };
 
                 let estimated_capacity_bps = self.peak_throughput_average.get_average();
-                let steps_bps = *step_size_mbps * 1E6;
-                let r_steps_bps = *r_step_size_mbps * 1E6;
+                let steps_bps = profile_config.step_size_mbps * 1E6;
+                let r_steps_bps = profile_config.r_step_size_mbps * 1E6;
 
-                let threshold_fps = *nfr_thresh * server_fps;
-                let threshold_rtt = frame_interval_s * *rtt_thresh_scaling_factor;
-                let threshold_u = *rtt_explor_prob;
+                let threshold_fps = profile_config.nfr_thresh * server_fps;
+                let threshold_rtt = frame_interval_s * profile_config.rtt_thresh_scaling_factor;
+                let threshold_u = profile_config.rtt_explor_prob;
 
                 if heur_fps >= threshold_fps {
                     if rtt_avg_heur_s > threshold_rtt {
@@ -361,14 +357,19 @@ impl BitrateManager {
                 }
 
                 // Ensure bitrate is within allowed range
-                bitrate_bps = minmax_bitrate(bitrate_bps, max_bitrate_mbps, min_bitrate_mbps);
+                bitrate_bps = minmax_bitrate(
+                    bitrate_bps,
+                    profile_config.max_bitrate_mbps,
+                    profile_config.min_bitrate_mbps,
+                );
 
                 // Ensure bitrate is below the estimated network capacity
-                let capacity_upper_limit = *capacity_scaling_factor * estimated_capacity_bps;
+                let capacity_upper_limit =
+                    profile_config.capacity_scaling_factor * estimated_capacity_bps;
                 bitrate_bps = floor_to_nearest_mult_from_initial(
                     f32::min(bitrate_bps, capacity_upper_limit),
                     steps_bps,
-                    initial_bitrate_mbps * 1E6,
+                    profile_config.initial_bitrate_mbps * 1E6,
                 );
 
                 let heur_stats = HeuristicStats {
@@ -389,12 +390,12 @@ impl BitrateManager {
                 };
                 alvr_events::send_event(EventType::HeuristicStats(heur_stats));
 
-                if let Switch::Enabled(max) = max_bitrate_mbps {
-                    let maxi = *max as f32 * 1e6;
+                if let Some(max) = profile_config.max_bitrate_mbps {
+                    let maxi = max as f32 * 1e6;
                     stats.manual_max_bps = Some(maxi);
                 }
-                if let Switch::Enabled(min) = min_bitrate_mbps {
-                    let mini = *min as f32 * 1e6;
+                if let Some(min) = profile_config.min_bitrate_mbps {
+                    let mini = min as f32 * 1e6;
                     stats.manual_min_bps = Some(mini);
                 }
                 bitrate_bps
