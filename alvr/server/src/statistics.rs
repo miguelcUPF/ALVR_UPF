@@ -454,6 +454,7 @@ impl StatisticsManager {
 
             shards_lost: shards_lost,
             shards_duplicated: network_stats.duplicated_shard_counter,
+            shards_sent: shards_sent as u32,
 
             instant_network_throughput_bps: instant_network_throughput_bps,
             peak_network_throughput_bps: peak_network_throughput_bps,

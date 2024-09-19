@@ -96,6 +96,7 @@ pub struct GraphNetworkStatistics {
 
     pub shards_lost: isize,
     pub shards_duplicated: u32,
+    pub shards_sent: u32,
 
     pub instant_network_throughput_bps: f32,
     pub peak_network_throughput_bps: f32,
