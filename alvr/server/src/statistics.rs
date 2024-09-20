@@ -670,7 +670,6 @@ impl StatisticsManager {
             // timestamp as the graph time origin.
             alvr_events::send_event(EventType::GraphStatistics(GraphStatistics {
                 frame_index: client_stats.frame_index, // added
-                is_idr: frame.is_idr,                  // added
 
                 frames_dropped: client_stats.frames_dropped, // added
 

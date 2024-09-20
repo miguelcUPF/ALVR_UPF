@@ -55,7 +55,6 @@ pub struct NominalBitrateStats {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct GraphStatistics {
     pub frame_index: i32,
-    pub is_idr: bool,
 
     pub frames_dropped: u32,
 
