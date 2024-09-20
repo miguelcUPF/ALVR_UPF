@@ -30,6 +30,8 @@ pub struct StatisticsSummary {
     pub packets_skipped_total: usize,
     pub packets_skipped_per_sec: usize,
 
+    pub shard_loss_rate: f32,
+
     pub frame_jitter_ms: f32,
 
     pub client_fps: f32,
