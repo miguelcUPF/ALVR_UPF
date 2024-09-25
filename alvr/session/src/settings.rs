@@ -261,10 +261,6 @@ pub struct DecoderLatencyLimiter {
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone, PartialEq)]
 pub enum NestVrProfile {
-    Generic,
-    Mobility,
-    Dense,
-    #[schema(collapsible)]
     Custom {
         #[schema(strings(display_name = "Adjustment period (tau)"))]
         #[schema(flag = "real-time")]
@@ -313,6 +309,12 @@ pub enum NestVrProfile {
         #[schema(gui(slider(min = 0.1, max = 5.0, logarithmic)))]
         rtt_thresh_scaling_factor: f32,
     },
+    Generic,
+    MinMax,
+    Drop,
+    SwiftDecline,
+    Mobility,
+    Dense,
 }
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone, PartialEq)]
@@ -1330,8 +1332,6 @@ pub fn session_settings_default() -> SettingsDefault {
                     NestVr: BitrateModeNestVrDefault {
                         nest_vr_profile: NestVrProfileDefault {
                             Custom: NestVrProfileCustomDefault {
-                                gui_collapsed: false,
-
                                 update_interval_nestvr_s: 1.0,
 
                                 max_bitrate_mbps: SwitchDefault {
