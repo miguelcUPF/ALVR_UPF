@@ -290,10 +290,6 @@ impl BitrateManager {
             BitrateMode::NestVr {
                 nest_vr_profile, ..
             } => {
-                fn floor_to_nearest_mult_from_initial(value: f32, step: f32, initial: f32) -> f32 {
-                    initial + ((value - initial) / step).floor() * step
-                }
-
                 fn minmax_bitrate(
                     bitrate_bps: f32,
                     max_bitrate_mbps: Option<f32>,
@@ -356,20 +352,19 @@ impl BitrateManager {
                     bitrate_bps -= r_steps_bps; // decrease bitrate by 1 step
                 }
 
+                // Ensure bitrate is below the estimated network capacity
+                let capacity_upper_limit =
+                    profile_config.capacity_scaling_factor * estimated_capacity_bps;
+
+                while bitrate_bps > capacity_upper_limit {
+                    bitrate_bps -= r_steps_bps;
+                }
+
                 // Ensure bitrate is within allowed range
                 bitrate_bps = minmax_bitrate(
                     bitrate_bps,
                     profile_config.max_bitrate_mbps,
                     profile_config.min_bitrate_mbps,
-                );
-
-                // Ensure bitrate is below the estimated network capacity
-                let capacity_upper_limit =
-                    profile_config.capacity_scaling_factor * estimated_capacity_bps;
-                bitrate_bps = floor_to_nearest_mult_from_initial(
-                    f32::min(bitrate_bps, capacity_upper_limit),
-                    steps_bps,
-                    profile_config.initial_bitrate_mbps * 1E6,
                 );
 
                 let heur_stats = HeuristicStats {
