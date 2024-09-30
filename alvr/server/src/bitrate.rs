@@ -248,10 +248,19 @@ impl BitrateManager {
         let now = Instant::now();
 
         if let BitrateMode::NestVr {
-            nest_vr_profile, ..
+            max_bitrate_mbps,
+            min_bitrate_mbps,
+            initial_bitrate_mbps,
+            nest_vr_profile,
+            ..
         } = &config.mode
         {
-            let profile_config = get_profile_config(&nest_vr_profile);
+            let profile_config = get_profile_config(
+                max_bitrate_mbps,
+                min_bitrate_mbps,
+                initial_bitrate_mbps,
+                nest_vr_profile,
+            );
 
             self.update_interval_s =
                 Duration::from_secs_f32(profile_config.update_interval_nestvr_s);
@@ -288,7 +297,11 @@ impl BitrateManager {
         let bitrate_bps = match &config.mode {
             BitrateMode::ConstantMbps(bitrate_mbps) => *bitrate_mbps as f32 * 1e6,
             BitrateMode::NestVr {
-                nest_vr_profile, ..
+                max_bitrate_mbps,
+                min_bitrate_mbps,
+                initial_bitrate_mbps,
+                nest_vr_profile,
+                ..
             } => {
                 fn minmax_bitrate(
                     bitrate_bps: f32,
@@ -307,7 +320,12 @@ impl BitrateManager {
                     bitrate
                 }
 
-                let profile_config = get_profile_config(&nest_vr_profile);
+                let profile_config = get_profile_config(
+                    max_bitrate_mbps,
+                    min_bitrate_mbps,
+                    initial_bitrate_mbps,
+                    nest_vr_profile,
+                );
 
                 // Sample from uniform distribution
                 let mut rng = thread_rng();
