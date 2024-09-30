@@ -256,9 +256,9 @@ impl BitrateManager {
         } = &config.mode
         {
             let profile_config = get_profile_config(
-                max_bitrate_mbps,
-                min_bitrate_mbps,
-                initial_bitrate_mbps,
+                *max_bitrate_mbps,
+                *min_bitrate_mbps,
+                *initial_bitrate_mbps,
                 nest_vr_profile,
             );
 
@@ -305,25 +305,21 @@ impl BitrateManager {
             } => {
                 fn minmax_bitrate(
                     bitrate_bps: f32,
-                    max_bitrate_mbps: Option<f32>,
-                    min_bitrate_mbps: Option<f32>,
+                    max_bitrate_mbps: f32,
+                    min_bitrate_mbps: f32,
                 ) -> f32 {
                     let mut bitrate = bitrate_bps;
-                    if let Some(max) = max_bitrate_mbps {
-                        let max = max as f32 * 1e6;
-                        bitrate = f32::min(bitrate, max);
-                    }
-                    if let Some(min) = min_bitrate_mbps {
-                        let min = min as f32 * 1e6;
-                        bitrate = f32::max(bitrate, min);
-                    }
+
+                    bitrate = f32::min(bitrate, max_bitrate_mbps * 1e6);
+                    bitrate = f32::max(bitrate, min_bitrate_mbps * 1e6);
+
                     bitrate
                 }
 
                 let profile_config = get_profile_config(
-                    max_bitrate_mbps,
-                    min_bitrate_mbps,
-                    initial_bitrate_mbps,
+                    *max_bitrate_mbps,
+                    *min_bitrate_mbps,
+                    *initial_bitrate_mbps,
                     nest_vr_profile,
                 );
 
@@ -403,14 +399,9 @@ impl BitrateManager {
                 };
                 alvr_events::send_event(EventType::HeuristicStats(heur_stats));
 
-                if let Some(max) = profile_config.max_bitrate_mbps {
-                    let maxi = max as f32 * 1e6;
-                    stats.manual_max_bps = Some(maxi);
-                }
-                if let Some(min) = profile_config.min_bitrate_mbps {
-                    let mini = min as f32 * 1e6;
-                    stats.manual_min_bps = Some(mini);
-                }
+                stats.manual_max_bps = Some(profile_config.max_bitrate_mbps * 1e6);
+                stats.manual_min_bps = Some(profile_config.min_bitrate_mbps * 1e6);
+                
                 bitrate_bps
             }
             BitrateMode::Adaptive {

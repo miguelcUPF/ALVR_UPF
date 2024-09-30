@@ -349,11 +349,11 @@ pub enum BitrateMode {
         #[schema(strings(display_name = "Maximum bitrate (B_max)"))]
         #[schema(flag = "real-time")]
         #[schema(gui(slider(min = 1.0, max = 1000.0, logarithmic)), suffix = "Mbps")]
-        max_bitrate_mbps: Switch<f32>,
+        max_bitrate_mbps: f32,
         #[schema(strings(display_name = "Minimum bitrate (B_min)"))]
         #[schema(flag = "real-time")]
         #[schema(gui(slider(min = 1.0, max = 1000.0, logarithmic)), suffix = "Mbps")]
-        min_bitrate_mbps: Switch<f32>,
+        min_bitrate_mbps: f32,
         #[schema(strings(display_name = "Initial bitrate (B_0)"))]
         #[schema(gui(slider(min = 1.0, max = 1000.0, logarithmic)), suffix = "Mbps")]
         initial_bitrate_mbps: f32,
@@ -1329,14 +1329,8 @@ pub fn session_settings_default() -> SettingsDefault {
                         },
                     },
                     NestVr: BitrateModeNestVrDefault {
-                        max_bitrate_mbps: SwitchDefault {
-                            enabled: true,
-                            content: 100.0,
-                        },
-                        min_bitrate_mbps: SwitchDefault {
-                            enabled: true,
-                            content: 10.0,
-                        },
+                        max_bitrate_mbps: 100.0,
+                        min_bitrate_mbps: 10.0,
                         initial_bitrate_mbps: 100.0,
                         nest_vr_profile: NestVrProfileDefault {
                             Custom: NestVrProfileCustomDefault {
