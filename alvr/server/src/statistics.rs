@@ -74,8 +74,8 @@ pub struct StatisticsManager {
     video_bytes_total: usize,
     video_bytes_partial_sum: usize,
 
-    video_shards_sent_total: isize,
-    video_shards_lost_total: isize,
+    video_shards_sent_partial_sum: isize,
+    video_shards_lost_partial_sum: isize,
 
     received_video_bytes_partial_sum: f32,
 
@@ -149,8 +149,9 @@ impl StatisticsManager {
             video_bytes_total: 0,
             video_bytes_partial_sum: 0,
 
-            video_shards_sent_total: 0,
-            video_shards_lost_total: 0,
+            video_shards_sent_partial_sum: 0,
+
+            video_shards_lost_partial_sum: 0,
 
             received_video_bytes_partial_sum: 0.,
 
@@ -410,8 +411,8 @@ impl StatisticsManager {
 
         shards_lost = shards_sent as isize - network_stats.rx_shard_counter as isize;
 
-        self.video_shards_sent_total += shards_sent as isize;
-        self.video_shards_lost_total += shards_lost;
+        self.video_shards_sent_partial_sum += shards_sent as isize;
+        self.video_shards_lost_partial_sum += shards_lost;
 
         self.prev_highest_frame = network_stats.highest_rx_frame_index as i32;
         self.prev_highest_shard = network_stats.highest_rx_shard_index as i32;
@@ -482,10 +483,10 @@ impl StatisticsManager {
             let interval_secs = now
                 .saturating_duration_since(self.last_full_report_instant)
                 .as_secs_f32();
-            let shard_loss_rate = if self.video_shards_sent_total == 0 {
+            let shard_loss_rate = if self.video_shards_sent_partial_sum == 0 {
                 0.0
             } else {
-                self.video_shards_lost_total as f32 / self.video_shards_sent_total as f32
+                self.video_shards_lost_partial_sum as f32 / self.video_shards_sent_partial_sum as f32
             };
 
             alvr_events::send_event(EventType::StatisticsSummary(StatisticsSummary {
@@ -579,6 +580,10 @@ impl StatisticsManager {
             self.frame_interarrival_partial_sum = 0.;
 
             self.packets_dropped_partial_sum = 0;
+            self.packets_skipped_partial_sum = 0;
+
+            self.video_shards_sent_partial_sum = 0;
+            self.video_shards_lost_partial_sum = 0;
 
             self.last_full_report_instant = now;
         }
