@@ -557,7 +557,7 @@ fn initialize_stream(
                 stream_input_pipeline(&xr_ctx, &interaction_ctx, &mut input_context);
                 let input_rate = *refresh_rate_hint.lock().unwrap();
                 let poll_rate = *poll_rate_hint.lock().unwrap();
-                
+
                 let frame_interval = Duration::from_secs_f32(1.0 / input_rate);
 
                 deadline += Duration::from_secs_f32(frame_interval.as_secs_f32() / poll_rate);
@@ -845,7 +845,7 @@ pub fn entry_point() {
                         refresh_rate_hint,
                         settings,
                     } => {
-                        let new_config = Some(StreamConfig {
+                        let new_config = StreamConfig {
                             view_resolution,
                             refresh_rate_hint,
                             foveated_encoding_config: settings
@@ -864,22 +864,23 @@ pub fn entry_point() {
                                 .as_option()
                                 .map(|c| c.sources.clone()),
                             poll_rate_hint: settings.custom.tracking_poll_rate,
-                        });
-                        if stream_config != new_config {
-                            stream_config = new_config;
-
-                            xr_session.request_exit().ok();
-                        } else {
-                            session_context.stream_context = stream_config.as_ref().map(|config| {
-                                initialize_stream(
-                                    &xr_ctx,
-                                    Arc::clone(&interaction_context),
-                                    session_context,
-                                    platform,
-                                    config,
-                                )
-                            });
+                        };
+                        if let Some(stream_config) = &stream_config {
+                            if (new_config.face_sources_config != stream_config.face_sources_config)
+                                && !matches!(platform, Platform::Focus3)
+                            {
+                                xr_session.request_exit().ok();
+                                continue;
+                            }
                         }
+                        session_context.stream_context = Some(initialize_stream(
+                            &xr_ctx,
+                            Arc::clone(&interaction_context),
+                            session_context,
+                            platform,
+                            &new_config,
+                        ));
+                        stream_config = Some(new_config);
                     }
                     ClientCoreEvent::FpsUpdate {
                         refresh_rate_update,
