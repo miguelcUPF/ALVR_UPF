@@ -375,12 +375,9 @@ impl BitrateManager {
 
                 // Ensure bitrate is always below the estimated network capacity
                 let capacity_upper_limit =
-                    profile_config.capacity_scaling_factor * estimated_capacity_bps;
+                    (profile_config.capacity_scaling_factor * estimated_capacity_bps).floor();
 
-                if bitrate_bps > capacity_upper_limit {
-                    bitrate_bps -=
-                        ((bitrate_bps - capacity_upper_limit) / r_steps_bps).ceil() * r_steps_bps;
-                }
+                bitrate_bps = f32::min(bitrate_bps, capacity_upper_limit);
 
                 // Ensure bitrate is at least 1 Mbps
                 bitrate_bps = f32::max(bitrate_bps, 1. * 1e6);
