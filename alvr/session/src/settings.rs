@@ -297,12 +297,10 @@ pub enum NestVrProfile {
         #[schema(gui(slider(min = 0.1, max = 5.0, logarithmic)))]
         rtt_thresh_scaling_factor: f32,
     },
-    Generic,
+    Balanced,
+    Anxious,
+    Speedy,
     MinMax,
-    Drop,
-    SwiftDecline,
-    Mobility,
-    Dense,
 }
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone, PartialEq)]

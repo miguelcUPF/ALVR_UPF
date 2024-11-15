@@ -63,10 +63,30 @@ pub fn get_profile_config(
             rtt_thresh_scaling_factor: *rtt_thresh_scaling_factor,
             ..base_config
         },
-        NestVrProfile::Generic => ProfileConfig {
+        NestVrProfile::Balanced => ProfileConfig {
             update_interval_nestvr_s: 1.0,
             step_size_mbps: 10.0,
             r_step_size_mbps: 10.0,
+            capacity_scaling_factor: 0.9,
+            rtt_explor_prob: 0.25,
+            nfr_thresh: 0.95,
+            rtt_thresh_scaling_factor: 2.0,
+            ..base_config
+        },
+        NestVrProfile::Anxious => ProfileConfig {
+            update_interval_nestvr_s: 1.0,
+            step_size_mbps: 10.0,
+            r_step_size_mbps: 100.0,
+            capacity_scaling_factor: 0.9,
+            rtt_explor_prob: 0.25,
+            nfr_thresh: 0.95,
+            rtt_thresh_scaling_factor: 2.0,
+            ..base_config
+        },
+        NestVrProfile::Speedy => ProfileConfig {
+            update_interval_nestvr_s: 1.0,
+            step_size_mbps: 10.0,
+            r_step_size_mbps: 20.0,
             capacity_scaling_factor: 0.9,
             rtt_explor_prob: 0.25,
             nfr_thresh: 0.95,
@@ -81,46 +101,6 @@ pub fn get_profile_config(
             rtt_explor_prob: 0.25,
             nfr_thresh: 0.95,
             rtt_thresh_scaling_factor: 2.0,
-            ..base_config
-        },
-        NestVrProfile::Drop => ProfileConfig {
-            update_interval_nestvr_s: 1.0,
-            step_size_mbps: 10.0,
-            r_step_size_mbps: 100.0,
-            capacity_scaling_factor: 0.9,
-            rtt_explor_prob: 0.25,
-            nfr_thresh: 0.95,
-            rtt_thresh_scaling_factor: 2.0,
-            ..base_config
-        },
-        NestVrProfile::SwiftDecline => ProfileConfig {
-            update_interval_nestvr_s: 1.0,
-            step_size_mbps: 10.0,
-            r_step_size_mbps: 20.0,
-            capacity_scaling_factor: 0.9,
-            rtt_explor_prob: 0.25,
-            nfr_thresh: 0.95,
-            rtt_thresh_scaling_factor: 2.0,
-            ..base_config
-        },
-        NestVrProfile::Mobility => ProfileConfig {
-            update_interval_nestvr_s: 0.5,
-            step_size_mbps: 5.0,
-            r_step_size_mbps: 15.0,
-            capacity_scaling_factor: 0.9,
-            rtt_explor_prob: 0.2,
-            nfr_thresh: 0.95,
-            rtt_thresh_scaling_factor: 1.5,
-            ..base_config
-        },
-        NestVrProfile::Dense => ProfileConfig {
-            update_interval_nestvr_s: 1.0,
-            step_size_mbps: 20.0,
-            r_step_size_mbps: 25.0,
-            capacity_scaling_factor: 0.9,
-            rtt_explor_prob: 0.5,
-            nfr_thresh: 0.95,
-            rtt_thresh_scaling_factor: 3.0,
             ..base_config
         },
     }
