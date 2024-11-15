@@ -377,8 +377,9 @@ impl BitrateManager {
                 let capacity_upper_limit =
                     profile_config.capacity_scaling_factor * estimated_capacity_bps;
 
-                while bitrate_bps > capacity_upper_limit {
-                    bitrate_bps -= r_steps_bps;
+                if bitrate_bps > capacity_upper_limit {
+                    bitrate_bps -=
+                        ((bitrate_bps - capacity_upper_limit) / r_steps_bps).ceil() * r_steps_bps;
                 }
 
                 // Ensure bitrate is at least 1 Mbps
