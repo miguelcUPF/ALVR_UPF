@@ -366,7 +366,14 @@ impl BitrateManager {
                     bitrate_bps -= r_steps_bps; // decrease bitrate by 1 step
                 }
 
-                // Ensure bitrate is below the estimated network capacity
+                // Ensure bitrate is within selected range
+                bitrate_bps = minmax_bitrate(
+                    bitrate_bps,
+                    profile_config.max_bitrate_mbps,
+                    profile_config.min_bitrate_mbps,
+                );
+
+                // Ensure bitrate is always below the estimated network capacity
                 let capacity_upper_limit =
                     profile_config.capacity_scaling_factor * estimated_capacity_bps;
 
@@ -374,12 +381,8 @@ impl BitrateManager {
                     bitrate_bps -= r_steps_bps;
                 }
 
-                // Ensure bitrate is within allowed range
-                bitrate_bps = minmax_bitrate(
-                    bitrate_bps,
-                    profile_config.max_bitrate_mbps,
-                    profile_config.min_bitrate_mbps,
-                );
+                // Ensure bitrate is at least 1 Mbps
+                bitrate_bps = f32::max(bitrate_bps, 1. * 1e6);
 
                 let heur_stats = HeuristicStats {
                     frame_interval_s: frame_interval_s,
@@ -401,7 +404,7 @@ impl BitrateManager {
 
                 stats.manual_max_bps = Some(profile_config.max_bitrate_mbps * 1e6);
                 stats.manual_min_bps = Some(profile_config.min_bitrate_mbps * 1e6);
-                
+
                 bitrate_bps
             }
             BitrateMode::Adaptive {
