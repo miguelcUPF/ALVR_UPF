@@ -260,6 +260,48 @@ pub struct DecoderLatencyLimiter {
 }
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone, PartialEq)]
+
+pub enum AveragingStrategy {
+    #[schema(strings(display_name = "Simple Window Average"))]
+    SimpleWindowAverage {
+        #[schema(flag = "real-time")]
+        #[schema(strings(display_name = "Statistics sliding window type"))]
+        window_type: WindowType,
+    },
+    #[schema(strings(display_name = "Exponential Weighted Moving Average"))]
+    ExponentialMovingAverage {
+        #[schema(flag = "real-time")]
+        #[schema(strings(
+            help = "EWMA_t = alpha*r_t+(1-alpha)*EWMA_{t-1}, where `alpha` denotes the EWMA weight and `r` is the value in the current period."
+        ))]
+        #[schema(gui(slider(min = 0.1, max = 1.0, step = 0.01)))]
+        ewma_weight: f32,
+    },
+}
+
+#[derive(SettingsSchema, Serialize, Deserialize, Clone, PartialEq)]
+
+pub enum WindowType {
+    #[schema(strings(display_name = "Time-based"))]
+    BySeconds {
+        #[schema(strings(
+            display_name = "Window size",
+            help = "Default uses an sliding window size equal to the algorithm adjustment period."
+        ))]
+        #[schema(flag = "real-time")]
+        #[schema(gui(slider(min = 0.5, max = 2., step = 0.1)), suffix = "seconds")]
+        sliding_window_secs: Option<f32>,
+    },
+    #[schema(strings(display_name = "Sample-based"))]
+    BySamples {
+        #[schema(strings(display_name = "Window size"))]
+        #[schema(flag = "real-time")]
+        #[schema(gui(slider(min = 32, max = 256, step = 1)), suffix = "samples")]
+        sliding_window_samp: usize,
+    },
+}
+
+#[derive(SettingsSchema, Serialize, Deserialize, Clone, PartialEq)]
 pub enum NestVrProfile {
     Custom {
         #[schema(strings(display_name = "Adjustment period (tau)"))]
@@ -341,6 +383,9 @@ pub enum BitrateMode {
         ))]
         #[schema(flag = "real-time")]
         decoder_latency_limiter: Switch<DecoderLatencyLimiter>,
+
+        #[schema(strings(display_name = "Statistics history size"))]
+        history_size: usize,
     },
 
     NestVr {
@@ -355,6 +400,9 @@ pub enum BitrateMode {
         #[schema(strings(display_name = "Initial bitrate (B_0)"))]
         #[schema(gui(slider(min = 1.0, max = 1000.0, logarithmic)), suffix = "Mbps")]
         initial_bitrate_mbps: f32,
+        #[schema(strings(display_name = "Statistics averaging strategy"))]
+        #[schema(flag = "real-time")]
+        averaging_strategy: AveragingStrategy,
         #[schema(strings(display_name = "Profile"))]
         nest_vr_profile: NestVrProfile,
     },
@@ -376,12 +424,6 @@ pub struct BitrateAdaptiveFramerateConfig {
 pub struct BitrateConfig {
     #[schema(flag = "real-time")]
     pub mode: BitrateMode,
-
-    #[schema(strings(
-        display_name = "Sliding window size (n)",
-        help = "Controls the smoothness during calculations"
-    ))]
-    pub history_size: usize,
 
     #[schema(strings(
         help = "Ensure that the specified bitrate value is respected regardless of the framerate"
@@ -1325,11 +1367,33 @@ pub fn session_settings_default() -> SettingsDefault {
                                 latency_overstep_multiplier: 0.99,
                             },
                         },
+                        history_size: 256,
                     },
                     NestVr: BitrateModeNestVrDefault {
                         max_bitrate_mbps: 100.0,
                         min_bitrate_mbps: 10.0,
                         initial_bitrate_mbps: 100.0,
+                        averaging_strategy: AveragingStrategyDefault {
+                            SimpleWindowAverage: AveragingStrategySimpleWindowAverageDefault {
+                                window_type: WindowTypeDefault {
+                                    BySeconds: WindowTypeBySecondsDefault {
+                                        sliding_window_secs: OptionalDefault {
+                                            set: false,
+                                            content: 1.,
+                                        },
+                                    },
+                                    BySamples: WindowTypeBySamplesDefault {
+                                        sliding_window_samp: 256,
+                                    },
+                                    variant: WindowTypeDefaultVariant::BySeconds,
+                                },
+                            },
+                            ExponentialMovingAverage:
+                                AveragingStrategyExponentialMovingAverageDefault {
+                                    ewma_weight: 0.2,
+                                },
+                            variant: AveragingStrategyDefaultVariant::ExponentialMovingAverage,
+                        },
                         nest_vr_profile: NestVrProfileDefault {
                             Custom: NestVrProfileCustomDefault {
                                 update_interval_nestvr_s: 1.0,
@@ -1350,7 +1414,6 @@ pub fn session_settings_default() -> SettingsDefault {
                     },
                     variant: BitrateModeDefaultVariant::NestVr,
                 },
-                history_size: 256,
                 adapt_to_framerate: SwitchDefault {
                     enabled: false,
                     content: BitrateAdaptiveFramerateConfigDefault {

@@ -2,8 +2,8 @@ use crate::FfiDynamicEncoderParams;
 use alvr_common::{warn, APStats, Client, Interface, SlidingWindowAverage};
 use alvr_events::{EventType, HeuristicStats, NominalBitrateStats};
 use alvr_session::{
-    get_profile_config, settings_schema::Switch, BitrateAdaptiveFramerateConfig, BitrateConfig,
-    BitrateMode,
+    get_profile_config, settings_schema::Switch, AveragingStrategy, BitrateAdaptiveFramerateConfig,
+    BitrateConfig, BitrateMode, WindowType,
 };
 use std::{
     collections::VecDeque,
@@ -45,9 +45,11 @@ pub struct BitrateManager {
 }
 impl BitrateManager {
     pub fn new(
-        max_history_size: usize,
+        max_history_size: Option<usize>,
         initial_framerate: f32,
         initial_bitrate: f32,
+        history_interval: Option<Duration>,
+        ewma_weight_val: Option<f32>,
         client_ip: IpAddr,
     ) -> Self {
         Self {
@@ -57,17 +59,28 @@ impl BitrateManager {
             frame_interval_average: SlidingWindowAverage::new(
                 Duration::from_millis(16),
                 max_history_size,
+                history_interval,
+                ewma_weight_val,
             ),
             packet_sizes_bits_history: VecDeque::new(),
             encoder_latency_average: SlidingWindowAverage::new(
                 Duration::from_millis(5),
                 max_history_size,
+                history_interval,
+                ewma_weight_val,
             ),
             network_latency_average: SlidingWindowAverage::new(
                 Duration::from_millis(5),
                 max_history_size,
+                history_interval,
+                ewma_weight_val,
             ),
-            bitrate_average: SlidingWindowAverage::new(initial_bitrate * 1e6, max_history_size),
+            bitrate_average: SlidingWindowAverage::new(
+                initial_bitrate * 1e6,
+                max_history_size,
+                history_interval,
+                ewma_weight_val,
+            ),
             decoder_latency_overstep_count: 0,
             last_frame_instant: Instant::now(),
             last_update_instant: Instant::now(),
@@ -78,11 +91,23 @@ impl BitrateManager {
             last_target_bitrate_bps: initial_bitrate * 1e6,
             update_interval_s: UPDATE_INTERVAL,
 
-            rtt_average: SlidingWindowAverage::new(Duration::from_millis(5), max_history_size),
-            peak_throughput_average: SlidingWindowAverage::new(300E6, max_history_size),
+            rtt_average: SlidingWindowAverage::new(
+                Duration::from_millis(5),
+                max_history_size,
+                history_interval,
+                ewma_weight_val,
+            ),
+            peak_throughput_average: SlidingWindowAverage::new(
+                300E6,
+                max_history_size,
+                history_interval,
+                ewma_weight_val,
+            ),
             frame_interarrival_average: SlidingWindowAverage::new(
                 1. / initial_framerate,
                 max_history_size,
+                history_interval,
+                ewma_weight_val,
             ),
 
             ap_stats_current: None,
@@ -247,27 +272,6 @@ impl BitrateManager {
     ) -> (FfiDynamicEncoderParams, Option<NominalBitrateStats>) {
         let now = Instant::now();
 
-        if let BitrateMode::NestVr {
-            max_bitrate_mbps,
-            min_bitrate_mbps,
-            initial_bitrate_mbps,
-            nest_vr_profile,
-            ..
-        } = &config.mode
-        {
-            let profile_config = get_profile_config(
-                *max_bitrate_mbps,
-                *min_bitrate_mbps,
-                *initial_bitrate_mbps,
-                nest_vr_profile,
-            );
-
-            self.update_interval_s =
-                Duration::from_secs_f32(profile_config.update_interval_nestvr_s);
-        } else {
-            self.update_interval_s = UPDATE_INTERVAL;
-        }
-
         if self
             .previous_config
             .as_ref()
@@ -275,6 +279,88 @@ impl BitrateManager {
             .unwrap_or(true)
         {
             self.previous_config = Some(config.clone());
+
+            let mut max_history_size = Some(256);
+            let mut history_interval = None;
+            let mut ewma_weight_val = None;
+
+            match &config.mode {
+                BitrateMode::NestVr {
+                    max_bitrate_mbps,
+                    min_bitrate_mbps,
+                    initial_bitrate_mbps,
+                    averaging_strategy,
+                    nest_vr_profile,
+                    ..
+                } => {
+                    let profile_config = get_profile_config(
+                        *max_bitrate_mbps,
+                        *min_bitrate_mbps,
+                        *initial_bitrate_mbps,
+                        nest_vr_profile,
+                    );
+
+                    self.update_interval_s =
+                        Duration::from_secs_f32(profile_config.update_interval_nestvr_s);
+
+                    match averaging_strategy {
+                        AveragingStrategy::SimpleWindowAverage { window_type, .. } => {
+                            match window_type {
+                                WindowType::BySeconds {
+                                    sliding_window_secs,
+                                    ..
+                                } => {
+                                    history_interval = Some(Duration::from_secs_f32(
+                                        sliding_window_secs
+                                            .unwrap_or(profile_config.update_interval_nestvr_s),
+                                    ));
+
+                                    max_history_size = None;
+                                }
+                                WindowType::BySamples {
+                                    sliding_window_samp,
+                                    ..
+                                } => {
+                                    max_history_size = Some(*sliding_window_samp);
+                                }
+                            }
+                        }
+                        AveragingStrategy::ExponentialMovingAverage { ewma_weight, .. } => {
+                            ewma_weight_val = Some(*ewma_weight);
+                        }
+                    }
+                }
+                BitrateMode::Adaptive { history_size, .. } => {
+                    self.update_interval_s = UPDATE_INTERVAL;
+
+                    max_history_size = Some(*history_size);
+                }
+                _ => {
+                    self.update_interval_s = UPDATE_INTERVAL;
+                }
+            }
+            let averages_dur = [
+                &mut self.frame_interval_average,
+                &mut self.encoder_latency_average,
+                &mut self.network_latency_average,
+                &mut self.rtt_average,
+            ];
+            let averages_f32 = [
+                &mut self.bitrate_average,
+                &mut self.peak_throughput_average,
+                &mut self.frame_interarrival_average,
+            ];
+
+            for average in averages_dur {
+                average.update_max_history_size(max_history_size);
+                average.update_history_interval(history_interval);
+                average.update_ewma_weight(ewma_weight_val);
+            }
+            for average in averages_f32 {
+                average.update_max_history_size(max_history_size);
+                average.update_history_interval(history_interval);
+                average.update_ewma_weight(ewma_weight_val);
+            }
         } else if !self.update_needed
             && (now < (self.last_update_instant + self.update_interval_s)
                 || matches!(config.mode, BitrateMode::ConstantMbps(_)))

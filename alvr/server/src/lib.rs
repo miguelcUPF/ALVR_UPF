@@ -70,9 +70,11 @@ static WEBSERVER_RUNTIME: OptLazy<Runtime> = Lazy::new(|| Mutex::new(Runtime::ne
 static STATISTICS_MANAGER: OptLazy<StatisticsManager> = alvr_common::lazy_mut_none();
 static BITRATE_MANAGER: Lazy<Mutex<BitrateManager>> = Lazy::new(|| {
     Mutex::new(BitrateManager::new(
-        256,
+        Some(256),
         60.0,
         30.0,
+        None,
+        None,
         IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
     ))
 });

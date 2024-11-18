@@ -170,32 +170,80 @@ impl StatisticsManager {
 
             total_pipeline_latency_average: SlidingWindowAverage::new(
                 Duration::ZERO,
-                max_history_size,
+                Some(max_history_size),
+                None,
+                None,
             ),
-            game_delay_average: SlidingWindowAverage::new(Duration::ZERO, max_history_size),
-            server_compositor_average: SlidingWindowAverage::new(Duration::ZERO, max_history_size),
-            encode_delay_average: SlidingWindowAverage::new(Duration::ZERO, max_history_size),
-            network_delay_average: SlidingWindowAverage::new(Duration::ZERO, max_history_size),
-            decode_delay_average: SlidingWindowAverage::new(Duration::ZERO, max_history_size),
+            game_delay_average: SlidingWindowAverage::new(
+                Duration::ZERO,
+                Some(max_history_size),
+                None,
+                None,
+            ),
+            server_compositor_average: SlidingWindowAverage::new(
+                Duration::ZERO,
+                Some(max_history_size),
+                None,
+                None,
+            ),
+            encode_delay_average: SlidingWindowAverage::new(
+                Duration::ZERO,
+                Some(max_history_size),
+                None,
+                None,
+            ),
+            network_delay_average: SlidingWindowAverage::new(
+                Duration::ZERO,
+                Some(max_history_size),
+                None,
+                None,
+            ),
+            decode_delay_average: SlidingWindowAverage::new(
+                Duration::ZERO,
+                Some(max_history_size),
+                None,
+                None,
+            ),
             decoder_queue_delay_average: SlidingWindowAverage::new(
                 Duration::ZERO,
-                max_history_size,
+                Some(max_history_size),
+                None,
+                None,
             ),
-            client_compositor_average: SlidingWindowAverage::new(Duration::ZERO, max_history_size),
-            vsync_queue_delay_average: SlidingWindowAverage::new(Duration::ZERO, max_history_size),
+            client_compositor_average: SlidingWindowAverage::new(
+                Duration::ZERO,
+                Some(max_history_size),
+                None,
+                None,
+            ),
+            vsync_queue_delay_average: SlidingWindowAverage::new(
+                Duration::ZERO,
+                Some(max_history_size),
+                None,
+                None,
+            ),
 
             frame_interval: nominal_server_frame_interval,
 
             frame_interval_average: SlidingWindowAverage::new(
                 Duration::from_millis(16),
-                max_history_size,
+                Some(max_history_size),
+                None,
+                None,
             ),
             client_frame_interval_average: SlidingWindowAverage::new(
                 Duration::from_millis(16),
-                max_history_size,
+                Some(max_history_size),
+                None,
+                None,
             ),
 
-            frame_interarrival_average: SlidingWindowAverage::new(0., max_history_size),
+            frame_interarrival_average: SlidingWindowAverage::new(
+                0.,
+                Some(max_history_size),
+                None,
+                None,
+            ),
 
             server_frames_moving: SlidingWindowTimely::new(60., 16., 1.),
             client_frames_moving: SlidingWindowTimely::new(60., 16., 1.),
@@ -486,7 +534,8 @@ impl StatisticsManager {
             let shard_loss_rate = if self.video_shards_sent_partial_sum == 0 {
                 0.0
             } else {
-                self.video_shards_lost_partial_sum as f32 / self.video_shards_sent_partial_sum as f32
+                self.video_shards_lost_partial_sum as f32
+                    / self.video_shards_sent_partial_sum as f32
             };
 
             alvr_events::send_event(EventType::StatisticsSummary(StatisticsSummary {
