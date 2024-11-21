@@ -389,15 +389,36 @@ impl BitrateManager {
                 nest_vr_profile,
                 ..
             } => {
+                fn round_down_to_nearest_mult_from_prev(
+                    value: f32,
+                    r_step: f32,
+                    step: f32,
+                    prev: f32,
+                    max: f32,
+                    min: f32,
+                ) -> f32 {
+                    if value >= prev {
+                        let steps_to_value = ((value - prev) / step).floor();
+                        let steps_to_max = ((max - prev) / step).floor();
+                        let n = steps_to_value.min(steps_to_max);
+                        prev + n * step
+                    } else {
+                        let steps_to_min = ((prev - min) / r_step).floor();
+                        let steps_to_value = ((prev - value) / r_step).ceil();
+                        let n = steps_to_min.min(steps_to_value);
+                        prev - n * r_step
+                    }
+                }
+
                 fn minmax_bitrate(
                     bitrate_bps: f32,
-                    max_bitrate_mbps: f32,
-                    min_bitrate_mbps: f32,
+                    max_bitrate_bps: f32,
+                    min_bitrate_bps: f32,
                 ) -> f32 {
                     let mut bitrate = bitrate_bps;
 
-                    bitrate = f32::min(bitrate, max_bitrate_mbps * 1e6);
-                    bitrate = f32::max(bitrate, min_bitrate_mbps * 1e6);
+                    bitrate = f32::min(bitrate, max_bitrate_bps);
+                    bitrate = f32::max(bitrate, min_bitrate_bps);
 
                     bitrate
                 }
@@ -452,21 +473,27 @@ impl BitrateManager {
                     bitrate_bps -= r_steps_bps; // decrease bitrate by 1 step
                 }
 
-                // Ensure bitrate is within selected range
-                bitrate_bps = minmax_bitrate(
-                    bitrate_bps,
-                    profile_config.max_bitrate_mbps,
-                    profile_config.min_bitrate_mbps,
-                );
-
-                // Ensure bitrate is always below the estimated network capacity
+                // Ensure bitrate is below the estimated network capacity
                 let capacity_upper_limit =
-                    (profile_config.capacity_scaling_factor * estimated_capacity_bps).floor();
+                    profile_config.capacity_scaling_factor * estimated_capacity_bps;
 
                 bitrate_bps = f32::min(bitrate_bps, capacity_upper_limit);
 
-                // Ensure bitrate is at least 1 Mbps
-                bitrate_bps = f32::max(bitrate_bps, 1. * 1e6);
+                // Ensure bitrate is always within the configured range
+                bitrate_bps = minmax_bitrate(
+                    bitrate_bps,
+                    profile_config.max_bitrate_mbps * 1E6,
+                    profile_config.min_bitrate_mbps * 1E6,
+                );
+
+                bitrate_bps = round_down_to_nearest_mult_from_prev(
+                    bitrate_bps,
+                    r_steps_bps,
+                    steps_bps,
+                    self.last_target_bitrate_bps,
+                    profile_config.max_bitrate_mbps * 1E6,
+                    profile_config.min_bitrate_mbps * 1E6,
+                );
 
                 let heur_stats = HeuristicStats {
                     frame_interval_s: frame_interval_s,
